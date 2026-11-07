@@ -121,7 +121,7 @@ async function init(root) {
       return `<fieldset><legend>1. 回収する量を選ぶ <span class="req">必須</span></legend><div class="choices" data-group="tier">${tiers}</div></fieldset>${optionRows("B")}${buybackBlock()}`;
     }
     const kinds = Object.keys(Q.CLEANUP_KINDS).map((k) => `<label class="choice"><input type="radio" name="kind" value="${k}"${st.kind === k ? " checked" : ""}><div><b>${esc(Q.CLEANUP_KINDS[k])}</b></div></label>`).join("");
-    const layouts = (prices.cleanup_by_layout || []).map((r) => `<label class="choice"><input type="radio" name="layout" value="${esc(r.layout)}"${st.layout === r.layout ? " checked" : ""}><div><b>${esc(r.layout)}</b><span>${isNum(r.hours) ? "作業 約" + r.hours + "時間" : "作業時間は確認中"}｜${isNum(r.price_from) ? "¥" + r.price_from.toLocaleString("ja-JP") + "〜" : "要相談"}</span></div></label>`).join("");
+    const layouts = (prices.cleanup_by_layout || []).map((r) => `<label class="choice"><input type="radio" name="layout" value="${esc(r.layout)}"${st.layout === r.layout ? " checked" : ""}><div><b>${esc(r.layout)}</b><span>${Q.hoursText(r.hours) ? "作業 " + esc(Q.hoursText(r.hours)) : "作業時間は確認中"}｜${isNum(r.price_from) ? "¥" + r.price_from.toLocaleString("ja-JP") + "〜" : "要相談"}</span></div></label>`).join("");
     const inc = (prices.cleanup_includes || []).map((s) => `<li>${esc(s)}</li>`).join("");
     return `<fieldset><legend>1. 片付けの種類</legend><div class="choices">${kinds}</div></fieldset>
 <fieldset><legend>2. 間取りを選ぶ <span class="req">必須</span></legend><div class="choices" data-group="layout">${layouts}</div>
@@ -129,7 +129,15 @@ async function init(root) {
 ${optionRows("C")}${buybackBlock()}`;
   }
 
+  // 仮の金額（prices.provisional）のあいだ、概算の上に出す帯
+  const band = prices.provisional
+    ? `<div class="provisional-band" role="note"><b>仮の目安（調整中）</b><span>${esc(prices.provisional_note || "現在の金額は仮の目安です。")}</span></div>`
+    : "";
+
   function estimateHTML() {
+    return band + estimateBody();
+  }
+  function estimateBody() {
     const r = calc();
     const bb = st.form === "A" ? r.buyback : r.buyback_detail;
     const hasItems = bb.lines.length > 0;
@@ -145,7 +153,7 @@ ${hasItems ? `<ul>${lines}</ul>` : ""}${hasItems && r.undetermined ? und : ""}${
     const cost = r.cost.undetermined ? "要相談" : yen(r.cost.amount) + "〜";
     const bbText = !hasItems ? "¥0" : bb.undetermined ? "要相談" : bb.max === 0 ? "¥0" : "¥0〜" + yen(bb.max).slice(1);
     const opLines = r.lines.filter((l) => l.consult || l.unit !== undefined).map((l) => `<li>${esc(l.name)}${l.qty > 1 ? " ×" + l.qty : ""}：${l.consult ? "別途ご案内" : l.undetermined ? "要相談" : yen(l.amount)}</li>`).join("");
-    const hours = st.form === "C" && r.layout ? `<p class="est-break">作業時間の目安：${isNum(r.hours) ? "約" + r.hours + "時間" : "確認中"}</p>` : "";
+    const hours = st.form === "C" && r.layout ? `<p class="est-break">作業時間の目安：${esc(Q.hoursText(r.hours) || "確認中")}</p>` : "";
     return `<div class="est-row"><span class="est-label">お会計の目安</span><span class="est-value" data-est-value>${val}</span><span class="est-note">${esc(Q.OFFSET_NOTE)}</span></div>
 <p class="est-break"><b>${st.form === "B" ? "回収費用" : "片付け費用"} ${cost}</b> − <b>買取見込み ${bbText}</b> ＝ お会計</p>${hours}
 ${opLines ? `<ul>${opLines}</ul>` : ""}${hasItems ? `<ul>${lines}</ul>` : ""}${chosen && r.undetermined ? und : ""}`;
@@ -339,8 +347,9 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
 
   function quoteText(p) {
     const r = p.quote;
-    if (p.form === "A") return r.undetermined ? "要相談" : r.max === 0 ? "0円（回収扱い）" : "0円 〜 " + yen(r.max) + "（買取見込み）";
-    return r.undetermined ? "要相談" : fmtRange(r.min, r.max) + "（お会計の目安）";
+    const pv = r.provisional ? "・仮の目安" : "";
+    if (p.form === "A") return r.undetermined ? "要相談" : r.max === 0 ? "0円（回収扱い）" : "0円 〜 " + yen(r.max) + "（買取見込み" + pv + "）";
+    return r.undetermined ? "要相談" : fmtRange(r.min, r.max) + "（お会計の目安" + pv + "）";
   }
   function detailText(p) {
     const r = p.quote;

@@ -119,6 +119,27 @@ function footer(page, rel) {
 }
 
 // ---------- データから作る部品 ----------
+// 仮の金額（prices.provisional）のあいだ、料金の近くに出す帯
+const PROVISIONAL_LABEL = "仮の目安（調整中）";
+function provisionalBand() {
+  if (!PRICES.provisional) return "";
+  return `<div class="provisional-band" role="note"><b>${PROVISIONAL_LABEL}</b><span>${esc(PRICES.provisional_note || "現在の金額は仮の目安です。")}</span></div>`;
+}
+const minPrice = (list, key) => {
+  const v = (list || []).map((x) => x[key]).filter(isNum);
+  return v.length ? Math.min(...v) : null;
+};
+function priceSummary(page, rel) {
+  const fromText = (v) => (isNum(v) ? yen(v) + "〜" : '<span class="consult">要相談</span>');
+  const firstLayout = (PRICES.cleanup_by_layout || []).filter((r) => isNum(r.price_from)).sort((a, b) => a.price_from - b.price_from)[0];
+  const maxBuy = (PRICES.buyback_items || []).filter((b) => isNum(b.max_price)).sort((a, b) => b.max_price - a.max_price)[0];
+  return `${provisionalBand()}<ul class="price-summary">
+<li><span>不用品回収（量の区分）</span><b>${fromText(minPrice(PRICES.collection_tiers, "price_from"))}</b></li>
+<li><span>片付け（間取り別${firstLayout ? "・" + esc(firstLayout.layout) + "の場合" : ""}）</span><b>${fromText(firstLayout ? firstLayout.price_from : null)}</b></li>
+<li><span>買取の上限目安（例：${maxBuy ? esc(maxBuy.name) : "冷蔵庫"}）</span><b>${maxBuy ? "最大 " + yen(maxBuy.max_price) : '<span class="consult">要相談</span>'}</b></li>
+</ul>
+<p class="callout">金額はすべて目安です。最終額は訪問査定で確定します。</p>`;
+}
 const buybackDef = (id) => (PRICES.buyback_items || []).find((b) => b.id === id) || {};
 const yearText = (d) => (isNum(d.year_limit) ? `製造からおおむね${d.year_limit}年以内` : "年式の目安は確認中");
 const maxText = (d) => (isNum(d.max_price) ? `最大 ${yen(d.max_price)}` : '<span class="consult">要相談</span>');
@@ -168,7 +189,7 @@ function priceTables(page, rel) {
     .map((t) => `<tr><td><img src="${rel}assets/icons/truck-${esc(t.id)}.svg" alt="" width="40" height="40" style="vertical-align:middle;margin-right:6px">${esc(QC.tierName(t))}<br><small class="muted">${esc(t.note || "")}</small></td><td class="num">${isNum(t.price_from) ? yen(t.price_from) + "〜" : '<span class="consult">要相談</span>'}</td></tr>`)
     .join("");
   const layouts = PRICES.cleanup_by_layout
-    .map((r) => `<tr><td>${esc(r.layout)}</td><td>${isNum(r.hours) ? "約" + r.hours + "時間" : "確認中"}</td><td class="num">${isNum(r.price_from) ? yen(r.price_from) + "〜" : '<span class="consult">要相談</span>'}</td></tr>`)
+    .map((r) => `<tr><td>${esc(r.layout)}</td><td>${esc(QC.hoursText(r.hours) || "確認中")}</td><td class="num">${isNum(r.price_from) ? yen(r.price_from) + "〜" : '<span class="consult">要相談</span>'}</td></tr>`)
     .join("");
   const items = PRICES.buyback_items
     .map((b) => `<tr><td>${esc(b.name)}</td><td>${esc(yearText(b))}</td><td class="num">${maxText(b)}</td></tr>`)
@@ -177,7 +198,7 @@ function priceTables(page, rel) {
     .map((o) => `<tr><td>${esc(o.name)}</td><td class="num">${isNum(o.price) ? yen(o.price) + "／" + esc(o.unit) : '<span class="consult">要相談</span>'}</td></tr>`)
     .join("");
   const inc = PRICES.cleanup_includes.map((s) => `<li>${esc(s)}</li>`).join("");
-  return `<p class="callout"><b>${esc(PRICES.disclaimer)}</b><br>価格表の更新日：${PRICES.updated ? esc(PRICES.updated) : "未定（金額は共同代表の確認待ち）"}／税：${PRICES.tax === "included" ? "税込" : esc(PRICES.tax)}</p>
+  return `${provisionalBand()}<p class="callout"><b>${esc(PRICES.disclaimer)}</b><br>価格表の更新日：${PRICES.updated ? esc(PRICES.updated) + (PRICES.provisional ? "（仮の金額）" : "") : "未定（金額は共同代表の確認待ち）"}／税：${PRICES.tax === "included" ? "税込" : esc(PRICES.tax)}</p>
 <h3 id="collection">不用品回収（量の区分）</h3>
 <div class="table-wrap"><table class="price"><thead><tr><th scope="col">区分</th><th scope="col">料金の目安</th></tr></thead><tbody>${tiers}</tbody></table></div>
 <h3 id="cleanup" style="margin-top:18px">片付け（間取り別）</h3>
@@ -188,7 +209,7 @@ function priceTables(page, rel) {
 <div class="table-wrap"><table class="price"><thead><tr><th scope="col">内容</th><th scope="col">料金</th></tr></thead><tbody>${options}</tbody></table></div>
 <h3 id="buyback" style="margin-top:18px">買取の上限目安</h3>
 <div class="table-wrap"><table class="price"><thead><tr><th scope="col">品目</th><th scope="col">年式の目安</th><th scope="col">上限の目安</th></tr></thead><tbody>${items}</tbody></table></div>
-<p class="muted">状態による目安：良い＝${Math.round((PRICES.condition_factor.good || 0) * 100)}%／普通＝${Math.round((PRICES.condition_factor.normal || 0) * 100)}%／難あり＝${Math.round((PRICES.condition_factor.damaged || 0) * 100)}%（上限に対して。確認中）。年式の目安を超えた家電は回収扱いです。</p>`;
+<p class="muted">状態による目安${PRICES.provisional ? "（仮）" : ""}：良い＝${Math.round((PRICES.condition_factor.good || 0) * 100)}%／普通＝${Math.round((PRICES.condition_factor.normal || 0) * 100)}%／難あり＝${Math.round((PRICES.condition_factor.damaged || 0) * 100)}%（上限に対して。確認中）。年式の目安を超えた家電は回収扱いです。</p>`;
 }
 
 function resultsCards(page, rel, limit) {
@@ -234,10 +255,13 @@ function service(id) {
   if (pageUrl(s.page)) o.url = pageUrl(s.page);
   return o;
 }
+const PROVISIONAL_LD = () => (PRICES.provisional ? PROVISIONAL_LABEL + "。" + (PRICES.provisional_note || "") : "");
 function offer(name, price, unitText, desc) {
   const o = { "@type": "Offer", itemOffered: { "@type": "Service", name } };
-  if (isNum(price)) o.priceSpecification = { "@type": "PriceSpecification", minPrice: price, priceCurrency: "JPY", ...(unitText ? { unitText } : {}) };
-  else o.description = "要相談";
+  if (isNum(price)) {
+    o.priceSpecification = { "@type": "PriceSpecification", minPrice: price, priceCurrency: "JPY", ...(unitText ? { unitText } : {}) };
+    if (PRICES.provisional) o.description = PROVISIONAL_LD();
+  } else o.description = "要相談";
   if (desc) o.itemOffered.description = desc;
   return o;
 }
@@ -245,9 +269,10 @@ function catalog() {
   return {
     "@type": "OfferCatalog",
     name: "料金目安（目安。最終額は訪問査定で確定）",
+    ...(PRICES.provisional ? { description: PROVISIONAL_LD() } : {}),
     itemListElement: [
       { "@type": "OfferCatalog", name: "不用品回収", itemListElement: PRICES.collection_tiers.map((t) => offer("不用品回収 " + QC.tierName(t), t.price_from, null, t.note)) },
-      { "@type": "OfferCatalog", name: "片付け（間取り別）", itemListElement: PRICES.cleanup_by_layout.map((r) => offer("片付け " + r.layout, r.price_from, null, isNum(r.hours) ? "作業時間の目安 " + r.hours + "時間" : null)) },
+      { "@type": "OfferCatalog", name: "片付け（間取り別）", itemListElement: PRICES.cleanup_by_layout.map((r) => offer("片付け " + r.layout, r.price_from, null, QC.hoursText(r.hours) ? "作業時間の目安 " + QC.hoursText(r.hours) : null)) },
       { "@type": "OfferCatalog", name: "オプション", itemListElement: PRICES.options.map((o) => offer(o.name, o.price, o.unit)) }
     ]
   };
@@ -278,6 +303,7 @@ const FRAGMENTS = {
   areas: (p, rel) => areas(p, rel),
   faq: () => faqList(),
   prices: (p, rel) => priceTables(p, rel),
+  "price-summary": (p, rel) => priceSummary(p, rel),
   results: (p, rel) => resultsCards(p, rel),
   "results-top": (p, rel) => resultsCards(p, rel, 3),
   hours: () => (CONFIG.HOURS ? esc(CONFIG.HOURS) : PENDING),
@@ -318,11 +344,16 @@ function llms() {
 
 この文書は AI エージェント向けの目次です。人が読む画面と同じ情報を、機械が読める形でも置いています。
 
-## ページ
+${PRICES.provisional ? `## 金額は${PROVISIONAL_LABEL}
+- ${PRICES.provisional_note || "現在の金額は仮の目安です。"}
+- 価格表の更新日：${PRICES.updated || "未定"}。data/prices.json の provisional が true のあいだ、すべての金額は仮。概算 API の返り値にも provisional: true が付く。
+- お客様に伝えるときは「仮の目安で、正式な金額に調整中。最終額は訪問査定で確定」と添えること。
+
+` : ""}## ページ
 ${pages}
 
 ## 機械可読データ（個人情報は含まない）
-- [料金目安](${u("data/prices.json")}): 不用品回収の量の区分・片付けの間取り別・オプション・買取の上限目安と年式の目安・状態係数。null は「要相談」。
+- [料金目安](${u("data/prices.json")}): 不用品回収の量の区分・片付けの間取り別・オプション・買取の上限目安と年式の目安・状態係数。null は「要相談」。provisional: true のあいだは仮の金額。
 - [取扱品目](${u("data/items.json")}): 買取の可否、見るところ、減額になりやすいこと、買取できない物の例。
 - [出張エリア](${u("data/areas.json")}): 市町村名と要確認フラグ、出張費・査定料。
 - [よくある質問](${u("data/faq.json")})
@@ -335,6 +366,7 @@ ${pages}
 - 不用品回収（フォームB）：お会計 ＝ 回収費用（区分の price_from ＋ オプション）− 買取見込み。幅（最小〜最大）で返す。マイナスはお客様の受け取り。
 - 片付け（フォームC）：お会計 ＝ 間取りの基本料 price_from ＋ オプション − 買取見込み。作業時間の目安 hours つき。
 - 価格表のどこかが null なら undetermined: true（要相談）。
+- 作業時間の目安 hours は「1〜2時間」のような文字列（または数値）。
 - 品目 id：${items}
 - 量の区分 tier：${tiers}
 - 間取り layout：${layouts}
@@ -348,10 +380,10 @@ ${pages}
   - \`?action=quote&form=B&tier=mini&options=stairs:1&items=sofa:1:within:normal\`
   - \`?action=quote&form=C&layout=2DK・2LDK&kind=ihin&options=kuyou\`
 - 価格表：\`?action=prices\`
-- 返り値は JSON（min・max・undetermined・lines・offset_note）。
+- 返り値は JSON（min・max・undetermined・provisional・lines・offset_note）。
 
 ## 注意
-- 価格はすべて目安。最終額は訪問査定で人が決める。AI がお客様に金額を約束しないこと。
+- 価格はすべて目安${PRICES.provisional ? "（現在は仮の金額）" : ""}。最終額は訪問査定で人が決める。AI がお客様に金額を約束しないこと。
 - 買取では古物営業法の本人確認が必要。本人確認は訪問時に人が行う（運転免許証・マイナンバーカード等）。
 - 予約は、フォームまたは LINE・電話の受付のあと、電話の折返しで日時を相談して確定する。フォーム送信だけでは確定しない。
 - お金の受け取り方（その場で現金／高額時は振込）は方針確認中。

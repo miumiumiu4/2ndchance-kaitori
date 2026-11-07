@@ -1,67 +1,69 @@
 // 自動生成：tools/build.mjs が data/prices.json から作る。手で直さない。
 // 価格を変えたら build → このファイルを Apps Script に反映（gas/README.md）。
 var PRICES = {
-  "_note": "概算フォーム・料金ページ・AI向けJSON・GAS再計算が共通で読む価格表。金額は共同代表が決めたものだけ入れる。null は「要相談」表示。",
+  "_note": "概算フォーム・料金ページ・AI向けJSON・GAS再計算が共通で読む価格表。provisional: true のあいだは一般的な相場をもとにした仮の金額（オーナー指示）。共同代表の正式な金額が来たら差し替え、provisional を false にする。null は「要相談」表示。",
   "currency": "JPY",
   "tax": "included",
-  "updated": null,
+  "updated": "2026-11-07",
+  "provisional": true,
+  "provisional_note": "現在の金額は一般的な相場をもとにした仮の目安です。正式な金額に調整中で、最終額は訪問査定で確定します。",
   "disclaimer": "表示額は目安です。最終額は訪問査定で確定します。",
   "collection_tiers": [
     {
       "id": "small",
-      "name": null,
-      "price_from": null,
+      "name": "少量（袋〜数点）",
+      "price_from": 6000,
       "note": "例：少量（袋数個）"
     },
     {
       "id": "mini",
-      "name": null,
-      "price_from": null,
+      "name": "軽トラック1台分",
+      "price_from": 18000,
       "note": "例：軽トラック1台分"
     },
     {
       "id": "basic",
-      "name": null,
-      "price_from": null,
+      "name": "1.5tトラック1台分",
+      "price_from": 35000,
       "note": "例：1.5t〜2tトラック"
     },
     {
       "id": "large",
-      "name": null,
-      "price_from": null,
+      "name": "2tトラック1台分",
+      "price_from": 60000,
       "note": "例：2t以上"
     }
   ],
   "cleanup_by_layout": [
     {
       "layout": "1K",
-      "hours": null,
-      "price_from": null
+      "hours": "1〜2時間",
+      "price_from": 15000
     },
     {
       "layout": "1DK・1LDK",
-      "hours": null,
-      "price_from": null
+      "hours": "2〜3時間",
+      "price_from": 30000
     },
     {
       "layout": "2DK・2LDK",
-      "hours": null,
-      "price_from": null
+      "hours": "3〜5時間",
+      "price_from": 50000
     },
     {
       "layout": "3DK・3LDK",
-      "hours": null,
-      "price_from": null
+      "hours": "4〜6時間",
+      "price_from": 80000
     },
     {
       "layout": "4LDK",
-      "hours": null,
-      "price_from": null
+      "hours": "5〜8時間",
+      "price_from": 120000
     },
     {
       "layout": "5LDK",
-      "hours": null,
-      "price_from": null
+      "hours": "6〜10時間",
+      "price_from": 150000
     }
   ],
   "cleanup_includes": [
@@ -78,81 +80,81 @@ var PRICES = {
     {
       "id": "fridge",
       "name": "冷蔵庫",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 15000,
+      "year_limit": 7
     },
     {
       "id": "washer",
       "name": "洗濯機",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 10000,
+      "year_limit": 7
     },
     {
       "id": "microwave",
       "name": "電子レンジ",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 3000,
+      "year_limit": 7
     },
     {
       "id": "gas_stove",
       "name": "ガスコンロ",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 3000,
+      "year_limit": 7
     },
     {
       "id": "sofa",
       "name": "ソファ・ソファベッド",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 8000,
+      "year_limit": 10
     },
     {
       "id": "table",
       "name": "ダイニングテーブル",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 5000,
+      "year_limit": 10
     },
     {
       "id": "cupboard",
       "name": "食器棚",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 5000,
+      "year_limit": 10
     },
     {
       "id": "carpet",
       "name": "カーペット",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 1000,
+      "year_limit": 5
     },
     {
       "id": "curtain",
       "name": "カーテン",
-      "max_price": null,
-      "year_limit": null
+      "max_price": 1000,
+      "year_limit": 5
     }
   ],
   "condition_factor": {
     "good": 1,
     "normal": 0.6,
     "damaged": 0.2,
-    "_note": "状態係数の初期案。共同代表の確認待ち"
+    "_note": "状態係数の初期案（仮）。共同代表の確認待ち"
   },
   "options": [
     {
       "id": "stairs",
       "name": "階段での運び出し",
-      "price": null,
+      "price": 3000,
       "unit": "回"
     },
     {
       "id": "dismantle",
       "name": "解体が必要な場合",
-      "price": null,
+      "price": 2000,
       "unit": "点"
     },
     {
       "id": "aircon_removal",
       "name": "エアコン取外し",
-      "price": null,
+      "price": 5000,
       "unit": "台"
     }
   ]

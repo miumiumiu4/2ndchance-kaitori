@@ -51,6 +51,8 @@ npm test               # 全部緑になってからコミット
 
 ### 2. `data/prices.json`
 - 金額は共同代表が決めたものだけ入れる。`null` の間は画面・料金表・AI 向けが「要相談」と出す。
+- 今は**仮の一般的な金額**（2026-11-07 オーナー指示）。`provisional: true` のあいだ、料金ページ・トップの料金要約・フォームの概算の上に「仮の目安（調整中）」の帯と `provisional_note` を出し、llms.txt・JSON-LD・概算 API の返り値にも仮の旨が載る。正式な金額が来たら値を差し替え、`provisional` を `false` にする（帯は自動で消える）。
+- 片付けの作業時間 `hours` は数値（「約N時間」と表示）か「1〜2時間」のような文字列。
 - 形は `prices.template.json` と同じに保つ（テストが確かめる）。金額を入れたら `updated` を `YYYY-MM-DD` にする。
 - 変えたら `node tools/build.mjs` → `gas/Prices.gs` も作り直されるので、GAS 側も更新する（`gas/README.md`）。
 

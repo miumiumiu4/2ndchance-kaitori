@@ -209,3 +209,11 @@ details.faq div::before { content: "A. "; color: var(--accent); font-weight: 800
 @media (min-width: 1000px) {
   .grid-3 { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* 仮の金額（prices.provisional）のあいだ、料金の近くに出す帯 */
+.provisional-band { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; background: var(--warn-bg); color: var(--warn-ink); border: 2px dashed #b07a00; border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; font-size: .95rem; }
+.provisional-band b { display: inline-block; background: #7a5400; color: #fff; border-radius: 6px; padding: 1px 10px; font-weight: 900; white-space: nowrap; }
+.provisional-band span { flex: 1 1 14em; }
+.price-summary { list-style: none; padding: 0; margin: 0 0 4px; }
+.price-summary li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.price-summary b { color: var(--accent); font-size: 1.15rem; }

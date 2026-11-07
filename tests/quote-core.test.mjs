@@ -1,13 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { quoteBuyback, quoteCollection, quoteCleanup, quoteFromInput, parseQuoteQuery, sameQuote, OFFSET_NOTE } from "../js/quote-core.js";
+import { quoteBuyback, quoteCollection, quoteCleanup, quoteFromInput, parseQuoteQuery, sameQuote, hoursText, OFFSET_NOTE } from "../js/quote-core.js";
 
 const REAL = JSON.parse(fs.readFileSync(new URL("../data/prices.json", import.meta.url), "utf8"));
+// 金額が全部 null の価格表（形の見本）。「要相談」の振る舞いはこれで確かめる
+const BLANK = JSON.parse(fs.readFileSync(new URL("../prices.template.json", import.meta.url), "utf8"));
 
-// 金額を入れた試験用の価格表（本物の prices.json は書き換えない）
+// 一部だけ金額を入れた試験用の価格表（本物の prices.json は書き換えない）
 function filled() {
-  const p = structuredClone(REAL);
+  const p = structuredClone(BLANK);
   p.updated = "2026-11-07";
   p.buyback_items.find((b) => b.id === "fridge").max_price = 10000;
   p.buyback_items.find((b) => b.id === "fridge").year_limit = 7;
@@ -19,8 +21,8 @@ function filled() {
   return p;
 }
 
-test("今の価格表（null）では冷蔵庫2台は要相談（undetermined）", () => {
-  const r = quoteBuyback([{ id: "fridge", qty: 2, year: "within", condition: "good" }], REAL);
+test("金額が null の価格表では冷蔵庫2台は要相談（undetermined）", () => {
+  const r = quoteBuyback([{ id: "fridge", qty: 2, year: "within", condition: "good" }], BLANK);
   assert.equal(r.undetermined, true);
   assert.equal(r.min, null);
   assert.equal(r.max, null);
@@ -43,7 +45,7 @@ test("年式超過は買取見込み 0・回収扱い（上限が null でも 0 
   const r = quoteBuyback([{ id: "fridge", qty: 1, year: "over", condition: "good" }], p);
   assert.equal(r.max, 0);
   assert.match(r.lines[0].note, /回収扱い/);
-  const r2 = quoteBuyback([{ id: "fridge", qty: 1, year: "over", condition: "good" }], REAL);
+  const r2 = quoteBuyback([{ id: "fridge", qty: 1, year: "over", condition: "good" }], BLANK);
   assert.equal(r2.undetermined, false);
   assert.equal(r2.max, 0);
 });
@@ -76,7 +78,7 @@ test("買取見込みが費用を上回るとお会計はマイナス（お客�
 });
 
 test("区分の価格が null なら要相談", () => {
-  const r = quoteCollection("mini", [], null, REAL);
+  const r = quoteCollection("mini", [], null, BLANK);
   assert.equal(r.undetermined, true);
   assert.equal(r.min, null);
 });
@@ -109,7 +111,7 @@ test("片付け：間取りの基本料 + オプション − 買取見込み、
   assert.equal(r.max, 84000);
   assert.equal(r.cleanup_kind, "ihin");
   assert.ok(r.includes.length > 0);
-  const r2 = quoteCleanup("1K", "akiya", [], null, REAL);
+  const r2 = quoteCleanup("1K", "akiya", [], null, BLANK);
   assert.equal(r2.undetermined, true);
 });
 
@@ -129,4 +131,43 @@ test("画面の額が書き換えられていたら照合で差が出る", () =>
   const p = filled();
   const real = quoteFromInput({ form: "A", items: [{ id: "fridge", qty: 1, year: "within", condition: "good" }] }, p);
   assert.equal(sameQuote(real, { ...real, max: 999999 }), false);
+});
+
+// ---------- 今の価格表（仮の一般的な金額・provisional: true） ----------
+test("今の価格表：冷蔵庫2台・目安年数以内・普通 → 0〜18,000円（要相談にならない）", () => {
+  const r = quoteFromInput({ form: "A", items: [{ id: "fridge", qty: 2, year: "within", condition: "normal" }] }, REAL);
+  assert.equal(r.undetermined, false);
+  assert.equal(r.min, 0);
+  assert.equal(r.max, 18000);
+  assert.equal(r.provisional, REAL.provisional === true);
+});
+
+test("今の価格表：回収「軽トラ」＋冷蔵庫1台（以内・普通）の買取見込みで、お会計が幅で出る", () => {
+  const r = quoteFromInput({ form: "B", tier: "mini", options: [], items: [{ id: "fridge", qty: 1, year: "within", condition: "normal" }] }, REAL);
+  assert.equal(r.undetermined, false);
+  assert.equal(r.cost.amount, 18000);
+  assert.equal(r.min, 18000 - 9000);
+  assert.equal(r.max, 18000);
+});
+
+test("今の価格表：片付け 2LDK は 50,000〜、作業時間は文字列のまま", () => {
+  const r = quoteCleanup("2DK・2LDK", "ihin", [], null, REAL);
+  assert.equal(r.undetermined, false);
+  assert.equal(r.cost.amount, 50000);
+  assert.equal(r.min, 50000);
+  assert.equal(r.hours, "3〜5時間");
+  assert.equal(hoursText(r.hours), "3〜5時間");
+  assert.equal(hoursText(6), "約6時間");
+  assert.equal(hoursText(null), "");
+});
+
+test("今の価格表：どの品目・区分・間取り・オプションも要相談にならない（相談だけのオプションは別途ご案内）", () => {
+  REAL.buyback_items.forEach((b) => assert.equal(quoteBuyback([{ id: b.id, qty: 1, year: "unknown", condition: "damaged" }], REAL).undetermined, false, b.id));
+  const opts = REAL.options.map((o) => ({ id: o.id, qty: 1 })).concat([{ id: "kuyou" }]);
+  REAL.collection_tiers.forEach((t) => assert.equal(quoteCollection(t.id, opts, null, REAL).undetermined, false, t.id));
+  REAL.cleanup_by_layout.forEach((l) => {
+    const r = quoteCleanup(l.layout, "other", opts, null, REAL);
+    assert.equal(r.undetermined, false, l.layout);
+    assert.equal(r.lines.find((x) => x.id === "kuyou").note, "料金は担当者から別途ご案内");
+  });
 });

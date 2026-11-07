@@ -30,6 +30,11 @@ test("各ページの JSON-LD が読めて、LocalBusiness と Service がある
       // 値が null の項目は priceSpecification 無しで「要相談」
       const offers = cat.itemListElement.flatMap((c) => c.itemListElement);
       offers.forEach((o) => assert.ok(o.priceSpecification || o.description === "要相談"));
+      const prices = JSON.parse(read("data/prices.json"));
+      if (prices.provisional) {
+        assert.match(cat.description || "", /仮の目安/, "OfferCatalog の description に仮の旨");
+        offers.filter((o) => o.priceSpecification).forEach((o) => assert.match(o.description || "", /仮の目安/));
+      }
     }
   }
 });
@@ -44,6 +49,30 @@ test("各ページに固定 CTA（LINE・電話・フォーム）、空の設定
     assert.match(html, /<meta charset="UTF-8">/, p);
     assert.ok(!html.includes("�"), p + " に文字化け（U+FFFD）");
   }
+});
+
+test("provisional: true のとき、料金ページ・トップ・フォーム・llms.txt に「仮の目安（調整中）」の帯が出る", () => {
+  const prices = JSON.parse(read("data/prices.json"));
+  const pages = ["price/index.html", "index.html"];
+  if (!prices.provisional) {
+    pages.forEach((p) => assert.ok(!read(p).includes('class="provisional-band"'), p));
+    return;
+  }
+  for (const p of pages) {
+    const html = read(p);
+    assert.match(html, /class="provisional-band"[^>]*><b>仮の目安（調整中）<\/b>/, p);
+    assert.ok(html.includes(prices.provisional_note), p + " に provisional_note");
+  }
+  // フォームは JS が prices.provisional を見て概算の上に帯を出す
+  const form = read("js/form.js");
+  assert.match(form, /prices\.provisional/);
+  assert.match(form, /仮の目安（調整中）/);
+  const llms = read("llms.txt");
+  assert.ok(llms.includes("仮の目安（調整中）") && llms.includes(prices.provisional_note));
+  // 料金ページの表に「要相談」が残っていない（値が全部入っている）
+  const table = /<!--build:prices-->([\s\S]*?)<!--\/build:prices-->/.exec(read("price/index.html"))[1];
+  assert.ok(!table.includes("要相談"), "料金表に要相談が残る");
+  assert.match(table, /¥50,000〜/);
 });
 
 test("llms.txt・sitemap.xml・robots.txt・gas/QuoteCore.gs がある", () => {
@@ -61,8 +90,15 @@ test("gas/QuoteCore.gs + Prices.gs が Apps Script と同じく素のスクリ�
   const ctx = {};
   vm.createContext(ctx);
   vm.runInContext(read("gas/Prices.gs") + "\n" + read("gas/QuoteCore.gs") + "\nthis.QuoteCore = QuoteCore; this.PRICES = PRICES;", ctx);
-  const r = ctx.QuoteCore.quoteFromInput(ctx.QuoteCore.parseQuoteQuery({ form: "A", items: "fridge:2:within:good" }), ctx.PRICES);
-  assert.equal(r.undetermined, true);
+  const r = ctx.QuoteCore.quoteFromInput(ctx.QuoteCore.parseQuoteQuery({ form: "A", items: "fridge:2:within:normal" }), ctx.PRICES);
+  const prices = JSON.parse(read("data/prices.json"));
+  const fridge = prices.buyback_items.find((b) => b.id === "fridge");
+  if (fridge.max_price === null) assert.equal(r.undetermined, true);
+  else {
+    assert.equal(r.undetermined, false);
+    assert.equal(r.max, Math.floor((fridge.max_price * prices.condition_factor.normal) / 10) * 10 * 2);
+    assert.equal(r.provisional, !!prices.provisional);
+  }
 });
 
 test("公開用の写し（--out）に CFG_* が差し込まれ、リポジトリ側は変わらない", () => {

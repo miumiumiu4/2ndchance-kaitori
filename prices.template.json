@@ -3,6 +3,8 @@
   "currency": "JPY",
   "tax": "included",
   "updated": null,
+  "provisional": false,
+  "provisional_note": null,
   "disclaimer": "表示額は目安です。最終額は訪問査定で確定します。",
   "collection_tiers": [
     { "id": "small",  "name": null, "price_from": null, "note": "例：少量（袋数個）" },

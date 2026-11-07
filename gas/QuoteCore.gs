@@ -2,6 +2,7 @@
 var QuoteCore = (function () {
   // 概算の計算（純粋関数だけ）。画面・GAS の再計算・AI 向け action=quote が同じこの式を使う。
   // 価格は data/prices.json だけが正。値が null の項目は undetermined: true（画面は「要相談」）。
+  // prices.provisional が true のあいだは仮の金額。quoteFromInput の返り値に provisional として載せる。
   // tools/build.mjs がこのファイルから gas/QuoteCore.gs を生成する（export を外して var QuoteCore に包む）。
 
   // 年式係数：目安年数以内は 1.0、超えていれば 0（買取見込み 0・回収扱い）
@@ -195,7 +196,7 @@ var QuoteCore = (function () {
       kind: "cleanup",
       cleanup_kind: Object.prototype.hasOwnProperty.call(CLEANUP_KINDS, kind) ? kind : "other",
       layout: def ? def.layout : null,
-      hours: def && isNum(def.hours) ? def.hours : null,
+      hours: def && (isNum(def.hours) || (typeof def.hours === "string" && def.hours)) ? def.hours : null,
       includes: (prices && prices.cleanup_includes) || [],
       cost: { amount: undetermined ? null : cost, undetermined: undetermined },
       buyback: buybackEstimate ? { min: buybackEstimate.min, max: buybackEstimate.max, undetermined: !!buybackEstimate.undetermined } : { min: 0, max: 0, undetermined: false },
@@ -211,6 +212,19 @@ var QuoteCore = (function () {
   // フォームの入力 → 概算（画面・GAS の doPost・doGet が共通で使う入口）
   // input: { form: "A"|"B"|"C", items, tier, layout, kind, options }
   function quoteFromInput(input, prices) {
+    const r = quoteFromInputRaw(input, prices);
+    r.provisional = !!(prices && prices.provisional);
+    return r;
+  }
+
+  // 片付けの作業時間の表示（数値なら「約N時間」、文字列ならそのまま）
+  function hoursText(h) {
+    if (isNum(h)) return "約" + h + "時間";
+    if (typeof h === "string" && h) return h;
+    return "";
+  }
+
+  function quoteFromInputRaw(input, prices) {
     const f = input && input.form;
     const bb = quoteBuyback((input && input.items) || [], prices);
     if (f === "A") return { form: "A", buyback: bb, min: bb.min, max: bb.max, undetermined: bb.undetermined, offset_note: OFFSET_NOTE };
@@ -260,5 +274,5 @@ var QuoteCore = (function () {
     return a.min === b.min && a.max === b.max && !!a.undetermined === !!b.undetermined;
   }
 
-  return { YEAR_FACTOR: YEAR_FACTOR, CONSULT_OPTIONS: CONSULT_OPTIONS, CLEANUP_KINDS: CLEANUP_KINDS, TIER_NAMES: TIER_NAMES, tierName: tierName, MAX_QTY: MAX_QTY, OFFSET_NOTE: OFFSET_NOTE, quoteBuyback: quoteBuyback, quoteCollection: quoteCollection, quoteCleanup: quoteCleanup, quoteFromInput: quoteFromInput, parseQuoteQuery: parseQuoteQuery, sameQuote: sameQuote };
+  return { YEAR_FACTOR: YEAR_FACTOR, CONSULT_OPTIONS: CONSULT_OPTIONS, CLEANUP_KINDS: CLEANUP_KINDS, TIER_NAMES: TIER_NAMES, tierName: tierName, MAX_QTY: MAX_QTY, OFFSET_NOTE: OFFSET_NOTE, quoteBuyback: quoteBuyback, quoteCollection: quoteCollection, quoteCleanup: quoteCleanup, quoteFromInput: quoteFromInput, hoursText: hoursText, parseQuoteQuery: parseQuoteQuery, sameQuote: sameQuote };
 })();
