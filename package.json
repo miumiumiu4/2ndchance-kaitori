@@ -1,0 +1,13 @@
+{
+  "name": "2ndchance-kaitori",
+  "version": "0.1.0",
+  "private": true,
+  "description": "2nd chance recycle（熊本県合志市）買取・片付けサイト。静的サイト＋GAS 受け口。",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "check": "node tools/build.mjs --check",
+    "test": "node --test \"tests/*.mjs\""
+  },
+  "engines": { "node": ">=20" }
+}

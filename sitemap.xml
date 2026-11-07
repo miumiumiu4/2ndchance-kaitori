@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SITE_URL が未設定のため相対パス。公開URLを決めたら CFG_SITE_URL（または config.js）に入れて build する -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>./</loc></url>
+  <url><loc>kaitori/</loc></url>
+  <url><loc>kataduke/</loc></url>
+  <url><loc>seiri/</loc></url>
+  <url><loc>flow/</loc></url>
+  <url><loc>price/</loc></url>
+  <url><loc>privacy/</loc></url>
+</urlset>

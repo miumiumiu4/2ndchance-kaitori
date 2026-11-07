@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ページが見つかりません｜2nd chance recycle</title>
+<meta name="robots" content="noindex">
+<style>
+  body { margin: 0; background: #f7f5ef; color: #1d2b24; font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", system-ui, sans-serif; font-size: 18px; line-height: 1.8; }
+  main { max-width: 640px; margin: 0 auto; padding: 48px 16px; }
+  h1 { font-size: 1.5rem; line-height: 1.4; }
+  a.btn { display: inline-block; background: #1f5e46; color: #fff; padding: 12px 20px; border-radius: 12px; text-decoration: none; font-weight: 800; margin: 6px 6px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ページが見つかりません</h1>
+  <p>お探しのページは移動したか、まだ準備中です。下のボタンからトップページへお戻りください。</p>
+  <p><a class="btn" id="home" href="/">トップページへ</a><a class="btn" id="kaitori" href="/kaitori/">買取ページへ</a></p>
+</main>
+<script>
+  // 404 はどの深さの URL でも同じ中身で返るため、サイトの入口を推し量ってリンクを直す。
+  // GitHub Pages のプロジェクトサイト（/リポジトリ名/）なら先頭の1段を入口とみなす。
+  (function () {
+    var base = "/";
+    if (/\.github\.io$/.test(location.hostname)) {
+      var seg = location.pathname.split("/").filter(Boolean)[0];
+      if (seg) base = "/" + seg + "/";
+    }
+    document.getElementById("home").href = base;
+    document.getElementById("kaitori").href = base + "kaitori/";
+  })();
+</script>
+</body>
+</html>

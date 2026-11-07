@@ -1,0 +1,18 @@
+# PR ごとにテスト（概算の式・生成物が最新か・data の妥当性・秘密 grep・相対リンク）
+name: CI
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test

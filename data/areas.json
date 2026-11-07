@@ -1,0 +1,28 @@
+{
+  "_note": "出張エリア表。中心は合志市、目安は30km圏。needs_confirm=true は共同代表の確認待ち。地区によっては圏外になることがある。",
+  "center": "熊本県合志市",
+  "radius_km": 30,
+  "travel_fee": "無料",
+  "assessment_fee": "無料",
+  "fee_note": "出張費・査定料は無料（30km圏内）。圏外はご相談ください。",
+  "methods": [
+    { "id": "store", "name": "店頭買取", "note": "お店に持ち込み" },
+    { "id": "visit", "name": "出張買取", "note": "合志市から30km圏内へ伺います" }
+  ],
+  "not_offered": ["宅配買取"],
+  "areas": [
+    { "name": "合志市",  "pref": "熊本県", "needs_confirm": false },
+    { "name": "熊本市",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "菊池市",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "菊陽町",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "大津町",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "益城町",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "嘉島町",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "西原村",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "御船町",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "玉東町",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "玉名市",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "山鹿市",  "pref": "熊本県", "needs_confirm": true },
+    { "name": "宇土市",  "pref": "熊本県", "needs_confirm": true }
+  ]
+}
