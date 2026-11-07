@@ -2,6 +2,7 @@
 // 入力 → 確認画面 → 送信 → 受付番号。GAS_URL が空なら送信ボタンは「準備中」で押せず、入力と概算は画面に残す。
 import { CONFIG } from "./config.js";
 import * as Q from "./quote-core.js";
+import { yen, fmtRange, estimateValueText, stickyEstimate } from "./estimate-text.js";
 
 const FORM_NAMES = { A: "出張買取", B: "不用品回収", C: "片付け（遺品整理・生前整理など）" };
 const YEAR_LABELS = { within: "目安年数以内", over: "目安年数を超えている", unknown: "わからない" };
@@ -18,10 +19,7 @@ const OPTIONS_FOR = {
 };
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const yen = (n) => "¥" + Math.abs(n).toLocaleString("ja-JP");
 const isNum = (v) => typeof v === "number" && isFinite(v);
-const fmtBill = (n) => (n < 0 ? "お受け取り " + yen(n) : yen(n));
-const fmtRange = (a, b) => (a === b ? fmtBill(a) : fmtBill(a) + " 〜 " + fmtBill(b));
 const toHalf = (s) => String(s || "").replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
 const toKata = (s) => String(s || "").replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
 
@@ -134,22 +132,23 @@ ${optionRows("C")}${buybackBlock()}`;
     ? `<div class="provisional-band" role="note"><b>仮の目安（調整中）</b><span>${esc(prices.provisional_note || "現在の金額は仮の目安です。")}</span></div>`
     : "";
 
-  function estimateHTML() {
-    return band + estimateBody();
+  // B は量・C は間取りを選んだか（A は品目の有無を r から見る）
+  const chosenNow = () => (st.form === "B" ? !!st.tier : st.form === "C" ? !!st.layout : true);
+  function estimateHTML(r) {
+    return band + estimateBody(r);
   }
-  function estimateBody() {
-    const r = calc();
+  function estimateBody(r) {
     const bb = st.form === "A" ? r.buyback : r.buyback_detail;
     const hasItems = bb.lines.length > 0;
     const lines = bb.lines.map((l) => `<li>${esc(l.name)} ×${l.qty}（${YEAR_LABELS[l.year]}・${esc((COND_LABELS[l.condition] || "").replace(/（.*/, ""))}）：${l.undetermined ? "要相談" : l.year === "over" ? "0円（回収扱い）" : "最大 " + yen(l.max)}${l.note && !l.undetermined && l.year !== "over" ? "　※" + esc(l.note) : ""}</li>`).join("");
     const und = '<p class="est-break">金額が決まるまで「要相談」と表示しています。LINEで写真を送っていただければ目安をお伝えします。</p>';
     if (st.form === "A") {
-      const val = !hasItems ? "品目を選んでください" : r.undetermined ? "要相談" : r.max === 0 ? "0円（回収扱い）" : "0円 〜 " + yen(r.max);
+      const val = estimateValueText("A", r);
       return `<div class="est-row"><span class="est-label">買取見込み（目安）</span><span class="est-value" data-est-value>${val}</span><span class="est-note">買取見込み額は目安。最終額は訪問査定で確定します</span></div>
 ${hasItems ? `<ul>${lines}</ul>` : ""}${hasItems && r.undetermined ? und : ""}${bb.lines.some((l) => l.year === "over") ? '<p class="est-break">年式の目安を超えた家電は買取ではなく回収扱いです。回収費用は<a href="../kataduke/#form-b">不用品回収</a>でご確認ください。</p>' : ""}`;
     }
-    const chosen = st.form === "B" ? !!st.tier : !!st.layout;
-    const val = !chosen ? (st.form === "B" ? "量を選んでください" : "間取りを選んでください") : r.undetermined ? "要相談" : fmtRange(r.min, r.max);
+    const chosen = chosenNow();
+    const val = estimateValueText(st.form, r, chosen);
     const cost = r.cost.undetermined ? "要相談" : yen(r.cost.amount) + "〜";
     const bbText = !hasItems ? "¥0" : bb.undetermined ? "要相談" : bb.max === 0 ? "¥0" : "¥0〜" + yen(bb.max).slice(1);
     const opLines = r.lines.filter((l) => l.consult || l.unit !== undefined).map((l) => `<li>${esc(l.name)}${l.qty > 1 ? " ×" + l.qty : ""}：${l.consult ? "別途ご案内" : l.undetermined ? "要相談" : yen(l.amount)}</li>`).join("");
@@ -209,11 +208,58 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
 <div class="confirm card" id="q-confirm" hidden></div>
 <div id="q-done" hidden></div>`;
 
+  // ---------- 固定バーの概算パネル ----------
+  // フォームが画面に入ったら固定バーの上段に「買取見込み／お会計の目安：金額（仮の目安）」を1行で出す。
+  // タップで概算の箱（内訳）へ。確認画面・受付後も金額は残す。
+  function setupSticky() {
+    const bar = document.querySelector(".cta-bar");
+    if (!bar) return { update() {} };
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cta-est";
+    btn.id = "cta-est";
+    btn.hidden = true;
+    btn.setAttribute("aria-controls", "q-est");
+    btn.innerHTML = '<span class="cta-est-label" data-sticky-label></span><span class="cta-est-value" data-sticky-value></span><span class="cta-est-prov" data-sticky-prov hidden>（仮の目安）</span>';
+    bar.insertBefore(btn, bar.firstChild);
+    document.body.classList.add("has-cta-est");
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    btn.addEventListener("click", () => {
+      // 入力中は概算の箱、確認画面・受付後はそれぞれの箱へ
+      const target = [root.querySelector("#q-done"), root.querySelector("#q-confirm"), root.querySelector("#q-est")].find((x) => x && !x.hidden && !(x.closest("form") || {}).hidden) || root;
+      target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    });
+    if ("IntersectionObserver" in window) {
+      // フォームが見え始めたら出す。フォームより下（フッターなど）までスクロールしても出したままにする
+      new IntersectionObserver((entries) => {
+        const e = entries[entries.length - 1];
+        btn.hidden = !(e.isIntersecting || e.boundingClientRect.bottom < 0);
+      }).observe(root);
+    } else btn.hidden = false;
+    const lbl = btn.querySelector("[data-sticky-label]");
+    const val = btn.querySelector("[data-sticky-value]");
+    const prov = btn.querySelector("[data-sticky-prov]");
+    return {
+      update(s) {
+        lbl.textContent = s.label + "：";
+        val.textContent = s.value;
+        prov.hidden = !s.provisional;
+        btn.setAttribute("aria-label", `${s.label} ${s.value}${s.provisional ? "（仮の目安）" : ""}。タップで内訳へ`);
+      }
+    };
+  }
+
   const form = root.querySelector("form");
   const panel = root.querySelector("#q-panel");
   const est = root.querySelector("#q-est");
   const renderPanel = () => { panel.innerHTML = panelHTML(); };
-  const renderEst = () => { est.innerHTML = estimateHTML(); };
+  // 概算は1回だけ計算し、概算の箱と固定バーの概算パネルに同じ結果を渡す（二重計算のズレを作らない）
+  const sticky = setupSticky();
+  const renderEst = () => {
+    const r = calc();
+    est.innerHTML = estimateHTML(r);
+    sticky.update(stickyEstimate(st.form, r, chosenNow()));
+  };
   renderPanel();
   renderEst();
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 画面の確認（任意）：簡易サーバーで配信し、Playwright で 390px と 1280px を撮影して screens/ に保存。
-// あわせてフォームの動き（冷蔵庫2台の概算・仮の帯・タブ切替・相殺・確認画面・送信ボタンの「準備中」）を確かめる。
+// あわせてフォームの動き（冷蔵庫2台の概算・仮の帯・タブ切替・相殺・確認画面・送信ボタンの「準備中」・固定バーの概算パネル）を確かめる。
 //   node tools/screens.mjs      （Playwright が入っている環境で）
 import http from "node:http";
 import fs from "node:fs";
@@ -71,6 +71,8 @@ try {
   await page.selectOption("#y-fridge", "within");
   await page.locator("#q-est").screenshot({ path: path.join(ROOT, "screens", "form-a-estimate-390.png") });
 
+  check("固定バー：フォームが見えている間は概算パネルが出て、箱と同じ金額", (await page.isVisible("#cta-est")) && (await page.textContent("#cta-est [data-sticky-value]")) === (await page.textContent("#q-est [data-est-value]")));
+
   // 確認画面（GAS_URL が空 → 送信は準備中）
   await page.fill("#f-name", "やまだ はなこ");
   await page.fill("#f-tel", "0" + "9000000000");
@@ -86,6 +88,7 @@ try {
   const sendBtn = page.locator("#q-confirm button.btn-form");
   check("送信ボタン：GAS_URL 空なら「準備中」で押せない", (await sendBtn.isDisabled()) && (await sendBtn.textContent()).includes("準備中"));
   await page.screenshot({ path: path.join(ROOT, "screens", "form-a-confirm-390.png"), fullPage: false });
+  check("確認画面：固定バーの概算パネルに金額が残る", (await page.isVisible("#cta-est")) && (await page.textContent("#cta-est")).includes("¥18,000"));
   await page.click('[data-act="back"]');
   check("戻ると入力が残る", (await page.inputValue("#f-name")) === "ヤマダ ハナコ" && (await page.textContent('[data-out="item:fridge"]')) === "2");
 
@@ -124,6 +127,59 @@ try {
   await page.waitForSelector("[role=tab]");
   check("#form-c と ?kind=akiya で片付け・空き家が選ばれる", (await page.getAttribute("#tab-C", "aria-selected")) === "true" && (await page.isChecked('input[name=kind][value="akiya"]')));
   await ctx.close();
+
+  // 固定バーの概算パネル：ページ上部では出さず、フォームの下の方（メール・郵便番号）まで来ても金額が見える
+  const stickyRun = async (w, h, url, prepare, shot, label, want) => {
+    const c = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, locale: "ja-JP" });
+    const pg = await c.newPage();
+    pg.on("console", (m) => { if (m.type() === "error") errors.push(`${w}px ${m.text()}`); });
+    pg.on("pageerror", (e) => errors.push(`${w}px ${e.message}`));
+    await pg.goto(BASE + url, { waitUntil: "networkidle" });
+    await pg.waitForSelector("#q-est .est-value");
+    await pg.evaluate(() => window.scrollTo(0, 0));
+    await pg.waitForTimeout(150);
+    check(`${label} ${w}px：ページ上部ではパネルを出さない`, !(await pg.isVisible("#cta-est")));
+    await prepare(pg);
+    await pg.locator("#f-zip").scrollIntoViewIfNeeded();
+    await pg.evaluate(() => document.querySelector("#f-zip").scrollIntoView({ block: "center" }));
+    await pg.waitForTimeout(300);
+    const box = await pg.evaluate(() => {
+      const e = document.querySelector("#cta-est");
+      const r = e.getBoundingClientRect();
+      return { h: Math.round(r.height), fs: parseFloat(getComputedStyle(e).fontSize), estInView: document.querySelector("#q-est").getBoundingClientRect().bottom > 0 };
+    });
+    const sv = (await pg.textContent("#cta-est [data-sticky-value]")).trim();
+    const ev = (await pg.textContent("#q-est [data-est-value]")).trim();
+    check(`${label} ${w}px：下へスクロールしても固定バーに概算（${want}）`, (await pg.isVisible("#cta-est")) && sv === want && sv === ev && !box.estInView, `パネル=${sv} 箱=${ev}`);
+    check(`${label} ${w}px：パネルの高さ 44px 以上・文字 16px 以上`, box.h >= 44 && box.fs >= 16, `高さ ${box.h}px 文字 ${box.fs}px`);
+    const label2 = (await pg.textContent("#cta-est [data-sticky-label]")).trim();
+    check(`${label} ${w}px：ラベル`, label2.startsWith(url.startsWith("kaitori") ? "買取見込み" : "お会計の目安"), label2);
+    const overflow = await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    check(`${label} ${w}px：横スクロールなし`, overflow <= 0, `はみ出し ${overflow}px`);
+    if (shot) await pg.screenshot({ path: path.join(ROOT, "screens", shot), fullPage: false });
+    // 最後の入力欄・ボタンが固定バーに隠れない（ページ最下部までスクロール）
+    await pg.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await pg.waitForTimeout(150);
+    const gap = await pg.evaluate(() => document.querySelector(".cta-bar").getBoundingClientRect().top - document.querySelector("form.qform button[type=submit]").getBoundingClientRect().bottom);
+    const footGap = await pg.evaluate(() => document.querySelector(".cta-bar").getBoundingClientRect().top - document.querySelector(".site-footer").getBoundingClientRect().bottom);
+    check(`${label} ${w}px：最下部で送信ボタン・フッターが固定バーに隠れない`, gap > 0 && footGap >= 0, `ボタンとの間 ${Math.round(gap)}px／フッターとの間 ${Math.round(footGap)}px`);
+    // タップで概算の箱へ
+    await pg.click("#cta-est");
+    await pg.waitForTimeout(800);
+    const top = await pg.evaluate(() => document.querySelector("#q-est").getBoundingClientRect().top);
+    check(`${label} ${w}px：パネルをタップすると概算の箱へ`, top >= -2 && top < 120, `箱の上端 ${Math.round(top)}px`);
+    await c.close();
+  };
+  const fridgeA = async (pg) => { await pg.click('[data-step="item:fridge"][data-d="1"]'); };
+  const fridgeB = async (pg) => {
+    await pg.click('label.choice:has(input[value="mini"])');
+    await pg.click("details.card summary");
+    await pg.click('[data-step="item:fridge"][data-d="1"]');
+  };
+  for (const [w, h] of [[390, 844], [1280, 900]]) {
+    await stickyRun(w, h, "kaitori/", fridgeA, w === 390 ? "form-a-sticky-390.png" : "", "フォームA（冷蔵庫1台）", "0円 〜 ¥9,000");
+    await stickyRun(w, h, "kataduke/", fridgeB, w === 390 ? "form-b-sticky-390.png" : "", "フォームB（軽トラ＋冷蔵庫1台）", "¥9,000 〜 ¥18,000");
+  }
 
   check("コンソールエラーなし", errors.length === 0, errors.join(" | "));
 } finally {
