@@ -128,7 +128,7 @@ ${telBtn("btn-block")}
 function footer(page, rel) {
   const links = PAGES.map((p) => `<li><a href="${rel}${p.path}">${esc(p.nav || p.title)}</a></li>`).join("");
   return `<footer class="site-footer"><div class="wrap">
-<ul>${links}<li><a href="${rel}blog/">記事一覧</a></li><li><a href="${rel}llms.txt">AI向けの案内（llms.txt）</a></li></ul>
+<ul>${links}<li><a href="${rel}blog/">記事一覧</a></li></ul>
 <p>${esc(CONFIG.SITE_NAME)}（${esc(CONFIG.AREA_CENTER)}）｜受付時間：${CONFIG.HOURS ? esc(CONFIG.HOURS) : "準備中"}｜電話：${CONFIG.TEL ? esc(CONFIG.TEL) : "準備中"}</p>
 <p class="muted">表示している金額は目安です。最終額は訪問査定で確定します。金・貴金属の買取は準備中です。</p>
 </div></footer>`;
