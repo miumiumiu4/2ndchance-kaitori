@@ -126,9 +126,10 @@ ${telBtn("btn-block")}
 }
 
 function footer(page, rel) {
-  const links = PAGES.map((p) => `<li><a href="${rel}${p.path}">${esc(p.nav || p.title)}</a></li>`).join("");
+  // フッターのリンク一覧はオーナー指示（2026-11-08）で出さない。上部ナビとフォームの導線で足りる。
+  // 個人情報の取扱いへの入口はフォームの同意欄に残る。
   return `<footer class="site-footer"><div class="wrap">
-<ul>${links}<li><a href="${rel}blog/">記事一覧</a></li></ul>
+<p><a href="${rel}privacy/">個人情報の取扱い</a></p>
 <p>${esc(CONFIG.SITE_NAME)}（${esc(CONFIG.AREA_CENTER)}）｜受付時間：${CONFIG.HOURS ? esc(CONFIG.HOURS) : "準備中"}｜電話：${CONFIG.TEL ? esc(CONFIG.TEL) : "準備中"}</p>
 <p class="muted">表示している金額は目安です。最終額は訪問査定で確定します。金・貴金属の買取は準備中です。</p>
 </div></footer>`;
