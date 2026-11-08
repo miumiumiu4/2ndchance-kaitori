@@ -9,10 +9,14 @@
 // ブログ（content/posts → blog/）は日付で中身が変わるので、blog/ はコミットせず（.gitignore）毎回作る。
 // トップ・sitemap.xml・llms.txt の記事の部分は <!--live-->〜<!--/live--> で囲み、--check はそこを比べない。
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { mdToHtml } from "./md.mjs";
 import { loadPosts, publishedPosts, todayJST, isValidDate } from "./blog.mjs";
+
+// CSS の版番号（中身のハッシュ先頭8桁）。更新のたびに変わり、ブラウザが古い CSS を使い続けない。
+const CSS_VER = createHash("sha256").update(fs.readFileSync(new URL("../css/site.css", import.meta.url))).digest("hex").slice(0, 8);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -330,6 +334,8 @@ const FRAGMENTS = {
 
 function fill(html, page) {
   const rel = page.path ? "../".repeat(page.path.split("/").filter(Boolean).length) : "./";
+  // CSS の版番号を付け直す（ブラウザの古いキャッシュ対策）
+  html = html.replace(/href="([./]*)css\/site\.css(\?v=[0-9a-f]*)?"/g, `href="$1css/site.css?v=${CSS_VER}"`);
   return html.replace(/<!--build:([a-z0-9-]+)-->[\s\S]*?<!--\/build:\1-->/g, (m, name) => {
     const fn = FRAGMENTS[name];
     if (!fn) throw new Error(`${page.file}: 知らない差し込み口 ${name}`);
@@ -471,7 +477,7 @@ function shell({ pagePath, title, desc, graph, main, ogType }) {
 <meta name="theme-color" content="#1f5e46">
 <meta property="og:type" content="${ogType || "website"}">
 <meta property="og:title" content="${esc(title)}">
-${canonical}<link rel="stylesheet" href="${rel}css/site.css">
+${canonical}<link rel="stylesheet" href="${rel}css/site.css?v=${CSS_VER}">
 <link rel="icon" href="${rel}assets/icons/truck-mini.svg" type="image/svg+xml">
 <link rel="alternate" type="application/rss+xml" title="${esc(CONFIG.SITE_NAME)} の記事" href="${rel}blog/feed.xml">
 ${ldScript(graph)}

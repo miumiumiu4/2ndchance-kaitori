@@ -91,7 +91,7 @@ test("記事ページ：JSON-LD BlogPosting・関連する相談・固定CTA・�
   for (const f of pages) {
     const t = s.read(f);
     for (const m of t.matchAll(/\s(?:href|src)="([^"]*)"/g)) {
-      const url = m[1].split("#")[0];
+      const url = m[1].split("#")[0].split("?")[0];
       if (!url || /^(https?:|tel:|mailto:|data:)/.test(url)) continue;
       let target = path.resolve(path.dirname(path.join(s.out, f)), url);
       if (fs.existsSync(target) && fs.statSync(target).isDirectory()) target = path.join(target, "index.html");
@@ -141,7 +141,7 @@ test("一覧：1ページ20件、21件目から blog/page/2/", () => {
   const second = s.read("blog/page/2/index.html");
   assert.equal((second.match(/class="card post-card"/g) || []).length, 1);
   assert.match(second, /<b>記事1<\/b>/);
-  assert.match(second, /href="\.\.\/\.\.\/\.\.\/css\/site\.css"/);
+  assert.match(second, /href="\.\.\/\.\.\/\.\.\/css\/site\.css(\?v=[0-9a-f]+)?"/);
   assert.match(s.read("sitemap.xml"), /blog\/page\/2\//);
 });
 
