@@ -115,14 +115,16 @@ test("XSS：タイトル・要約・タグ・本文の <script> はエスケー�
 });
 
 test("--today で公開される記事が切り替わる（実際の content/posts）", () => {
-  const a = build("2026-11-09");
-  assert.ok(a.has("blog/hajimeni/index.html"));
-  assert.ok(!a.has("blog/katazuke-junban"), "11/10 の記事が 11/9 に出ている");
-  const b = build("2026-11-10");
-  assert.ok(b.has("blog/katazuke-junban/index.html"));
-  assert.match(b.read("blog/feed.xml"), /katazuke-junban/);
+  const a = build("2026-11-07");
+  assert.ok(!a.has("blog/hajimeni"), "11/8 の記事が 11/7 に出ている");
+  const b = build("2026-11-08");
+  assert.ok(b.has("blog/hajimeni/index.html"));
+  assert.match(b.read("blog/feed.xml"), /hajimeni/);
   assert.ok(!b.has("blog/mirai-test"), "2099 年の記事が出ている");
   assert.ok(!b.read("sitemap.xml").includes("mirai-test"));
+  assert.ok(!b.has("blog/risou-no-kurashi"), "draft の記事が出ている");
+  const c = build("2099-01-01");
+  assert.ok(c.has("blog/mirai-test/index.html"), "日付が来たら未来日の記事も出る");
 });
 
 test("一覧：1ページ20件、21件目から blog/page/2/", () => {
@@ -169,10 +171,10 @@ test("記事の形の誤りは build を止める（日付とファイル名の�
   assert.throws(() => loadPosts(dir), /ファイル名の日付[\s\S]*status は draft か scheduled/);
 });
 
-test("実際の content/posts が読めて、見本の3本がある", () => {
+test("実際の content/posts が読めて、見本と下書きがある", () => {
   const posts = loadPosts(path.join(ROOT, "content/posts"), ROOT);
   const slugs = posts.map((p) => p.slug);
-  for (const s of ["hajimeni", "katazuke-junban", "mirai-test"]) assert.ok(slugs.includes(s), s);
+  for (const s of ["hajimeni", "risou-no-kurashi", "mirai-test"]) assert.ok(slugs.includes(s), s);
   assert.equal(posts.find((p) => p.slug === "mirai-test").title, "未来日のテスト");
   assert.match(todayJST(new Date("2026-11-09T22:00:00Z")), /^2026-11-10$/, "UTC 22:00 は日本時間の翌日 07:00");
 });
