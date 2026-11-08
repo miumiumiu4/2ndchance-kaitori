@@ -59,7 +59,7 @@ const PAGES = [
   { file: "seiri/index.html", path: "seiri/", nav: "遺品整理など", title: "遺品整理・生前整理・ゴミ屋敷・空き家片付け", desc: "遺品整理・生前整理・ゴミ屋敷片付け・空き家片付け。買取できる物は費用から差し引きます。", form: "kataduke/#form-c", services: ["ihin", "seizen", "gomiyashiki", "akiya"] },
   { file: "flow/index.html", path: "flow/", nav: "流れ・FAQ", title: "買取の流れ・必要なもの・よくある質問", desc: "申込から訪問査定までの3ステップ、本人確認書類、お金の受け取り方、よくある質問。", form: "kaitori/#form-a", services: ["buyback"], faq: true },
   { file: "price/index.html", path: "price/", nav: "料金・実績", title: "料金目安・買取実績", desc: "不用品回収・片付けの料金目安、買取の上限目安、買取実績。", form: "kaitori/#form-a", services: ["buyback", "collection", "cleanup"], catalog: true },
-  { file: "privacy/index.html", path: "privacy/", nav: null, title: "個人情報の取扱い（仮）", desc: "個人情報の取扱い（仮の文面）。", form: "kaitori/#form-a", services: [] }
+  { file: "privacy/index.html", path: "privacy/", nav: null, title: "個人情報の取扱い", desc: "個人情報の取扱いについて。", form: "kaitori/#form-a", services: [] }
 ];
 
 const SERVICES = {
