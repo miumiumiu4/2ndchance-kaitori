@@ -48,6 +48,27 @@ try {
     await ctx.close();
   }
 
+  // ブログ：一覧と記事1本（390px）。blog/ は node tools/build.mjs が作る
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP" });
+    const page = await ctx.newPage();
+    page.on("console", (m) => { if (m.type() === "error") errors.push(`blog ${m.text()}`); });
+    page.on("pageerror", (e) => errors.push(`blog ${e.message}`));
+    await page.goto(BASE + "blog/", { waitUntil: "networkidle" });
+    const first = page.locator(".post-card a").first();
+    check("ブログ一覧 390px：記事が1本以上", (await page.locator(".post-card").count()) >= 1);
+    check("ブログ一覧 390px：横スクロールなし", (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    await page.screenshot({ path: path.join(ROOT, "screens", "blog-390.png"), fullPage: true });
+    await first.click();
+    await page.waitForSelector("article.post");
+    check("記事ページ 390px：関連する相談と固定CTA", (await page.isVisible("#h-related")) && (await page.isVisible(".cta-bar")));
+    check("記事ページ 390px：横スクロールなし", (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    await page.screenshot({ path: path.join(ROOT, "screens", "blog-post-390.png"), fullPage: true });
+    await page.goto(BASE, { waitUntil: "networkidle" });
+    check("トップ：最新の記事が出る", (await page.locator("#h-posts ~ ul .post-card, section[aria-labelledby=h-posts] .post-card").count()) >= 1);
+    await ctx.close();
+  }
+
   // 仮の金額のときは帯が出る
   const PRICES = JSON.parse(fs.readFileSync(path.join(ROOT, "data/prices.json"), "utf8"));
   // フォームA：冷蔵庫2台 → 0円〜¥18,000（年式わからない・普通）

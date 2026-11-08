@@ -229,3 +229,23 @@ details.faq div::before { content: "A. "; color: var(--accent); font-weight: 800
 .price-summary { list-style: none; padding: 0; margin: 0 0 4px; }
 .price-summary li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .price-summary b { color: var(--accent); font-size: 1.15rem; }
+
+/* ブログ（blog/。tools/build.mjs が content/posts から作る） */
+.post-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.post-card a { font-size: 1.1rem; line-height: 1.5; }
+.post-card p { margin: 4px 0 0; }
+.post-meta { color: var(--muted); font-size: .9rem; margin: 0 0 6px; }
+.post-tags { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.post-tags li { background: var(--green-soft); color: var(--green-dark); border-radius: 999px; padding: 0 10px; font-size: .8rem; font-weight: 700; }
+.post h1 { margin-top: 4px; }
+.post .post-tags { margin: 0 0 14px; }
+.post-cover { display: block; border-radius: 12px; margin: 0 0 16px; }
+.post-body h2 { border-bottom: 3px solid var(--green-soft); padding-bottom: 6px; margin-top: 1.4em; }
+.post-body h3 { margin-top: 1.2em; }
+.post-body ul, .post-body ol { padding-left: 1.4em; margin: 0 0 1em; }
+.post-body img { display: block; border-radius: 12px; margin: 8px 0; }
+.post-body blockquote { margin: 0 0 1em; padding: 10px 14px; border-left: 5px solid var(--line); background: var(--bg); border-radius: 8px; }
+.post-body blockquote p:last-child { margin-bottom: 0; }
+.post-body hr { border: 0; border-top: 2px dashed var(--line); margin: 1.5em 0; }
+.pager { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin: 16px 0 18px; }
+.pager span { color: var(--muted); }

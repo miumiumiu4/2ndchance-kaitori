@@ -1,4 +1,5 @@
 # main への push で組み立て → テスト → GitHub Pages へ公開。
+# publish-daily.yml（毎朝 7時の記事の予約公開）と同じ内容。片方を直したら、もう片方も同じに直す。
 # 電話・LINE・GAS の URL はリポジトリに書かず、Settings → Secrets and variables → Actions → Variables の CFG_* に置く。
 name: Pages
 on:

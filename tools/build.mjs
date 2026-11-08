@@ -4,15 +4,30 @@
 //   node tools/build.mjs           … リポジトリの中をその場で更新（config.js の値だけを使う）
 //   node tools/build.mjs --check   … 書き換えずに、生成物が最新かだけを確かめる（古ければ終了コード 1）
 //   node tools/build.mjs --out _site … 公開用の写しを作る。環境変数 CFG_* の値をこの写しにだけ差し込む
+//   --today=YYYY-MM-DD                … ブログの「今日」を差し替える（テスト用。既定は日本時間の今日）
+//   --posts <dir>                     … 記事の倉庫を差し替える（テスト用。既定は content/posts）
+// ブログ（content/posts → blog/）は日付で中身が変わるので、blog/ はコミットせず（.gitignore）毎回作る。
+// トップ・sitemap.xml・llms.txt の記事の部分は <!--live-->〜<!--/live--> で囲み、--check はそこを比べない。
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { mdToHtml } from "./md.mjs";
+import { loadPosts, publishedPosts, todayJST, isValidDate } from "./blog.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const CHECK = args.includes("--check");
 const outIdx = args.indexOf("--out");
 const OUT = outIdx >= 0 ? path.resolve(ROOT, args[outIdx + 1] || "_site") : null;
+const argVal = (name) => {
+  const eq = args.find((a) => a.startsWith(name + "="));
+  if (eq) return eq.slice(name.length + 1);
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : undefined;
+};
+const TODAY = argVal("--today") || todayJST();
+if (!isValidDate(TODAY)) { console.error("--today は YYYY-MM-DD（今は「" + TODAY + "」）"); process.exit(2); }
+const POSTS_DIR = path.resolve(ROOT, argVal("--posts") || "content/posts");
 
 const { CONFIG: BASE_CONFIG } = await import(pathToFileURL(path.join(ROOT, "js/config.js")).href);
 const QC = await import(pathToFileURL(path.join(ROOT, "js/quote-core.js")).href);
@@ -34,6 +49,7 @@ const ITEMS = readJSON("data/items.json");
 const AREAS = readJSON("data/areas.json");
 const FAQ = readJSON("data/faq.json");
 const RESULTS = readJSON("data/results.json");
+const POSTS = publishedPosts(loadPosts(POSTS_DIR, ROOT), TODAY);
 
 // ページ表（設計書 4-1 の6ページ＋個人情報）
 const PAGES = [
@@ -112,7 +128,7 @@ ${telBtn("btn-block")}
 function footer(page, rel) {
   const links = PAGES.map((p) => `<li><a href="${rel}${p.path}">${esc(p.nav || p.title)}</a></li>`).join("");
   return `<footer class="site-footer"><div class="wrap">
-<ul>${links}<li><a href="${rel}llms.txt">AI向けの案内（llms.txt）</a></li></ul>
+<ul>${links}<li><a href="${rel}blog/">記事一覧</a></li><li><a href="${rel}llms.txt">AI向けの案内（llms.txt）</a></li></ul>
 <p>${esc(CONFIG.SITE_NAME)}（${esc(CONFIG.AREA_CENTER)}）｜受付時間：${CONFIG.HOURS ? esc(CONFIG.HOURS) : "準備中"}｜電話：${CONFIG.TEL ? esc(CONFIG.TEL) : "準備中"}</p>
 <p class="muted">表示している金額は目安です。最終額は訪問査定で確定します。金・貴金属の買取は準備中です。</p>
 </div></footer>`;
@@ -307,6 +323,7 @@ const FRAGMENTS = {
   results: (p, rel) => resultsCards(p, rel),
   "results-top": (p, rel) => resultsCards(p, rel, 3),
   hours: () => (CONFIG.HOURS ? esc(CONFIG.HOURS) : PENDING),
+  "latest-posts": (p, rel) => latestPosts(rel),
   "canonical": (p) => (pageUrl(p.path) ? `<link rel="canonical" href="${esc(pageUrl(p.path))}">` : "")
 };
 
@@ -324,7 +341,11 @@ function sitemap() {
   const loc = (p) => (CONFIG.SITE_URL ? CONFIG.SITE_URL + p : p || "./");
   const head = CONFIG.SITE_URL ? "" : "<!-- SITE_URL が未設定のため相対パス。公開URLを決めたら CFG_SITE_URL（または config.js）に入れて build する -->\n";
   const urls = PAGES.map((p) => `  <url><loc>${esc(loc(p.path))}</loc></url>`).join("\n");
-  return `<?xml version="1.0" encoding="UTF-8"?>\n${head}<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+  const blog = [`  <url><loc>${esc(loc("blog/"))}</loc></url>`]
+    .concat(blogPagePaths().slice(1).map((p) => `  <url><loc>${esc(loc(p))}</loc></url>`))
+    .concat(POSTS.map((p) => `  <url><loc>${esc(loc(postPath(p)))}</loc><lastmod>${p.date}</lastmod></url>`))
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${head}<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n${LIVE_OPEN}\n${blog}\n${LIVE_CLOSE}\n</urlset>\n`;
 }
 function robots() {
   return `User-agent: *\nAllow: /\n` + (CONFIG.SITE_URL ? `\nSitemap: ${CONFIG.SITE_URL}sitemap.xml\n` : "");
@@ -358,6 +379,12 @@ ${pages}
 - [出張エリア](${u("data/areas.json")}): 市町村名と要確認フラグ、出張費・査定料。
 - [よくある質問](${u("data/faq.json")})
 - [買取実績](${u("data/results.json")}): 過去の例。最初は空。
+
+## 記事一覧
+${LIVE_OPEN}
+${POSTS.length ? POSTS.map((p) => `- [${p.title}](${u(postPath(p))})（${p.date}）: ${p.summary}`).join("\n") : "- まだ記事はありません。"}
+- 一覧：${u("blog/")}　RSS：${u("blog/feed.xml")}
+${LIVE_CLOSE}
 
 ## 概算の式（画面・受付の再計算・下の API が同じ式を使う）
 - 買取見込み（フォームA）＝ Σ（品目の上限目安 max_price × 年式係数 × 状態係数 condition_factor）× 台数。10円未満切り捨て。
@@ -409,6 +436,165 @@ var PRICES = ${JSON.stringify(PRICES, null, 2)};
 `;
 }
 
+// ---------- ブログ（content/posts → blog/） ----------
+const LIVE_OPEN = "<!--live-->";
+const LIVE_CLOSE = "<!--/live-->";
+const stripLive = (s) => s.replace(/<!--live-->[\s\S]*?<!--\/live-->/g, LIVE_OPEN + LIVE_CLOSE);
+const PER_PAGE = 20;
+const BLOG = { path: "blog/", nav: null, form: "kaitori/#form-a", services: [] };
+const postPath = (p) => `blog/${p.slug}/`;
+const pageCount = () => Math.max(1, Math.ceil(POSTS.length / PER_PAGE));
+const blogPagePaths = () => Array.from({ length: pageCount() }, (_, i) => (i === 0 ? "blog/" : `blog/page/${i + 1}/`));
+const relOf = (p) => "../".repeat(p.split("/").filter(Boolean).length);
+const jaDate = (d) => { const [y, m, dd] = d.split("-").map(Number); return `${y}年${m}月${dd}日`; };
+const absOrRel = (p, rel) => (CONFIG.SITE_URL ? CONFIG.SITE_URL + p : rel + p);
+
+function org() {
+  return { "@type": "Organization", "@id": (CONFIG.SITE_URL || "") + "#business", name: CONFIG.SITE_NAME, ...(CONFIG.SITE_URL ? { url: CONFIG.SITE_URL } : {}) };
+}
+function ldScript(graph) {
+  const json = JSON.stringify({ "@context": "https://schema.org", "@graph": graph }, null, 1).replace(/</g, "\\u003c");
+  return `<script type="application/ld+json">\n${json}\n</script>`;
+}
+function shell({ pagePath, title, desc, graph, main, ogType }) {
+  const rel = relOf(pagePath);
+  const page = { ...BLOG, path: pagePath };
+  const canonical = pageUrl(pagePath) ? `<link rel="canonical" href="${esc(pageUrl(pagePath))}">\n` : "";
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(title)}｜${esc(CONFIG.SITE_NAME)}（${esc(CONFIG.AREA_CENTER)}）</title>
+<meta name="description" content="${esc(desc)}">
+<meta name="theme-color" content="#1f5e46">
+<meta property="og:type" content="${ogType || "website"}">
+<meta property="og:title" content="${esc(title)}">
+${canonical}<link rel="stylesheet" href="${rel}css/site.css">
+<link rel="icon" href="${rel}assets/icons/truck-mini.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="${esc(CONFIG.SITE_NAME)} の記事" href="${rel}blog/feed.xml">
+${ldScript(graph)}
+</head>
+<body>
+<a class="visually-hidden" href="#main">本文へ</a>
+${header(page, rel)}
+<main id="main" class="wrap">
+${main}
+</main>
+${footer(page, rel)}
+${cta(page, rel)}
+</body>
+</html>
+`;
+}
+function postCard(p, rel) {
+  const tags = p.tags.length ? `<ul class="post-tags">${p.tags.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : "";
+  return `<li class="card post-card"><a href="${rel}${postPath(p)}"><b>${esc(p.title)}</b></a>
+<p class="post-meta"><time datetime="${p.date}">${jaDate(p.date)}</time></p>${p.summary ? `\n<p>${esc(p.summary)}</p>` : ""}${tags}</li>`;
+}
+function blogIndexPage(n) {
+  const paths = blogPagePaths();
+  const pagePath = paths[n - 1];
+  const rel = relOf(pagePath);
+  const list = POSTS.slice((n - 1) * PER_PAGE, n * PER_PAGE);
+  const prev = n > 1 ? `<a class="btn btn-ghost" href="${rel}${paths[n - 2]}" rel="prev">新しい記事へ</a>` : "";
+  const next = n < paths.length ? `<a class="btn btn-ghost" href="${rel}${paths[n]}" rel="next">古い記事へ</a>` : "";
+  const pager = prev || next ? `<nav class="pager" aria-label="ページ送り">${prev}<span>${n} / ${paths.length} ページ</span>${next}</nav>` : "";
+  const main = `<section class="section" aria-labelledby="h-blog">
+<h1 id="h-blog">記事一覧${n > 1 ? `（${n}ページ目）` : ""}</h1>
+<p>買取・片付け・遺品整理について、合志市の店からお伝えします。<a href="${rel}blog/feed.xml">RSS</a></p>
+${list.length ? `<ul class="post-list">\n${list.map((p) => postCard(p, rel)).join("\n")}\n</ul>` : `<p class="empty">記事は準備中です。</p>`}
+${pager}
+</section>`;
+  const graph = [
+    business(),
+    { "@type": "Blog", name: CONFIG.SITE_NAME + " の記事", ...(pageUrl("blog/") ? { url: pageUrl("blog/") } : {}), publisher: org(), blogPost: list.map((p) => ({ "@type": "BlogPosting", headline: p.title, datePublished: p.date, ...(pageUrl(postPath(p)) ? { url: pageUrl(postPath(p)) } : {}) })) }
+  ];
+  return [pagePath + "index.html", shell({ pagePath, title: "記事一覧" + (n > 1 ? `（${n}ページ目）` : ""), desc: "買取・片付け・遺品整理についての記事。" + CONFIG.AREA_CENTER + "のリサイクル店。", graph, main })];
+}
+function postPage(p, i) {
+  const pagePath = postPath(p);
+  const rel = relOf(pagePath);
+  const body = mdToHtml(p.body, { base: rel });
+  const cover = p.cover ? `<img class="post-cover" src="${rel}${esc(p.cover)}" alt="" loading="lazy">\n` : "";
+  const tags = p.tags.length ? `<ul class="post-tags">${p.tags.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : "";
+  const newer = POSTS[i - 1], older = POSTS[i + 1];
+  const pn = newer || older ? `<nav class="pager" aria-label="前後の記事">${newer ? `<a href="${rel}${postPath(newer)}" rel="prev">← ${esc(newer.title)}</a>` : "<span></span>"}${older ? `<a href="${rel}${postPath(older)}" rel="next">${esc(older.title)} →</a>` : ""}</nav>` : "";
+  const main = `<article class="section post" aria-labelledby="h-post">
+<p class="post-meta"><a href="${rel}blog/">記事一覧</a>　<time datetime="${p.date}">${jaDate(p.date)}</time></p>
+<h1 id="h-post">${esc(p.title)}</h1>
+${tags}${cover}<div class="post-body">
+${body}
+</div>
+</article>
+<section class="section" aria-labelledby="h-related">
+<h2 id="h-related">関連する相談</h2>
+<ul class="related" style="list-style:none;padding:0;margin:0">
+<li><a href="${rel}kaitori/"><b>出張買取</b><br><small>冷蔵庫・洗濯機・家具など。概算フォームあり</small></a></li>
+<li><a href="${rel}kataduke/"><b>不用品回収・片付け</b><br><small>量の区分・間取り別の目安と概算フォーム</small></a></li>
+<li><a href="${rel}seiri/"><b>遺品整理・生前整理</b><br><small>ゴミ屋敷・空き家の片付けも</small></a></li>
+</ul>
+${contact(BLOG, rel)}
+</section>
+${pn}`;
+  const posting = {
+    "@type": "BlogPosting",
+    headline: p.title,
+    datePublished: p.date,
+    ...(p.summary ? { description: p.summary } : {}),
+    ...(p.tags.length ? { keywords: p.tags.join(",") } : {}),
+    ...(pageUrl(pagePath) ? { url: pageUrl(pagePath), mainEntityOfPage: pageUrl(pagePath) } : {}),
+    ...(p.cover && CONFIG.SITE_URL ? { image: CONFIG.SITE_URL + p.cover } : {}),
+    author: org(),
+    publisher: org()
+  };
+  return [pagePath + "index.html", shell({ pagePath, title: p.title, desc: p.summary || p.title, graph: [business(), posting], main, ogType: "article" })];
+}
+function rssDate(d) {
+  const dt = new Date(d + "T07:00:00+09:00");
+  const j = new Date(dt.getTime() + 9 * 3600 * 1000);
+  const W = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][j.getUTCDay()];
+  const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][j.getUTCMonth()];
+  return `${W}, ${String(j.getUTCDate()).padStart(2, "0")} ${M} ${j.getUTCFullYear()} 07:00:00 +0900`;
+}
+function feed() {
+  // SITE_URL が未設定のときは feed.xml（blog/ の中）から見た相対パス
+  const link = (p) => (CONFIG.SITE_URL ? CONFIG.SITE_URL + p : p.replace(/^blog\//, "") || "./");
+  const items = POSTS.slice(0, 20).map((p) => `<item>
+<title>${esc(p.title)}</title>
+<link>${esc(link(postPath(p)))}</link>
+<guid isPermaLink="${CONFIG.SITE_URL ? "true" : "false"}">${esc(link(postPath(p)))}</guid>
+<pubDate>${rssDate(p.date)}</pubDate>
+<description>${esc(p.summary)}</description>
+${p.tags.map((t) => `<category>${esc(t)}</category>`).join("")}
+</item>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+<title>${esc(CONFIG.SITE_NAME)} の記事</title>
+<link>${esc(link("blog/"))}</link>
+<description>${esc(CONFIG.AREA_CENTER)}のリサイクル店から、買取・片付け・遺品整理についての記事。</description>
+<language>ja</language>
+${POSTS.length ? `<lastBuildDate>${rssDate(POSTS[0].date)}</lastBuildDate>\n` : ""}${items}
+</channel>
+</rss>
+`;
+}
+function latestPosts(rel) {
+  const list = POSTS.slice(0, 3);
+  const inner = list.length
+    ? `<ul class="post-list">\n${list.map((p) => postCard(p, rel)).join("\n")}\n</ul>\n<p style="margin-top:12px"><a href="${rel}blog/">記事一覧を見る</a></p>`
+    : `<p class="empty">記事は準備中です。</p>`;
+  return `${LIVE_OPEN}\n${inner}\n${LIVE_CLOSE}`;
+}
+function blogOutputs() {
+  const m = new Map();
+  for (let n = 1; n <= pageCount(); n++) { const [f, html] = blogIndexPage(n); m.set(f, html); }
+  POSTS.forEach((p, i) => { const [f, html] = postPage(p, i); m.set(f, html); });
+  m.set("blog/feed.xml", feed());
+  return m;
+}
+
 // ---------- 実行 ----------
 const outputs = new Map(); // 相対パス → 中身
 for (const p of PAGES) {
@@ -421,11 +607,22 @@ outputs.set("llms.txt", llms());
 outputs.set("gas/QuoteCore.gs", quoteCoreGs());
 outputs.set("gas/Prices.gs", pricesGs());
 
+// blog/ は丸ごと作り直す（消えた記事・未来日に戻した記事が残らないように）
+function writeBlog(dir) {
+  const out = blogOutputs();
+  fs.rmSync(path.join(dir, "blog"), { recursive: true, force: true });
+  for (const [rel, content] of out) {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), content);
+  }
+  console.log(`blog: 今日 ${TODAY}（日本時間）で ${POSTS.length} 本を公開、${out.size} ファイル`);
+}
+
 if (CHECK) {
   const stale = [];
   for (const [rel, content] of outputs) {
     const p = path.join(ROOT, rel);
-    if (!fs.existsSync(p) || fs.readFileSync(p, "utf8") !== content) stale.push(rel);
+    if (!fs.existsSync(p) || stripLive(fs.readFileSync(p, "utf8")) !== stripLive(content)) stale.push(rel);
   }
   if (stale.length) {
     console.error("生成物が古い：" + stale.join(", ") + "\n→ node tools/build.mjs を実行してコミットしてください");
@@ -434,7 +631,8 @@ if (CHECK) {
   console.log("build --check: 生成物は最新（" + outputs.size + " ファイル）");
 } else if (OUT) {
   // 公開用の写し（gas・tests・tools など公開しない物は除く）
-  const SKIP = new Set([".git", ".github", "node_modules", "tests", "tools", "gas", "screens", "package.json", "package-lock.json", "README.md", "DESIGN.md", "prices.template.json", ".gitignore", path.basename(OUT)]);
+  // content（未来日・下書きの記事）と blog（手元の組み立て）は写さず、blog は下でその日の分だけ作る
+  const SKIP = new Set([".git", ".github", "node_modules", "tests", "tools", "gas", "screens", "content", "blog", "package.json", "package-lock.json", "README.md", "DESIGN.md", "prices.template.json", ".gitignore", path.basename(OUT)]);
   fs.rmSync(OUT, { recursive: true, force: true });
   const copy = (from, to) => {
     for (const ent of fs.readdirSync(from, { withFileTypes: true })) {
@@ -450,6 +648,7 @@ if (CHECK) {
     if (rel.startsWith("gas/")) continue;
     fs.writeFileSync(path.join(OUT, rel), content);
   }
+  writeBlog(OUT);
   fs.writeFileSync(path.join(OUT, "js/config.js"), "// 公開用に組み立てた設定（tools/build.mjs --out）\nexport const CONFIG = " + JSON.stringify(CONFIG, null, 2) + ";\n");
   fs.writeFileSync(path.join(OUT, ".nojekyll"), "");
   console.log("build --out: " + path.relative(ROOT, OUT) + " に公開用の写しを作成（差し込んだ設定：" + OVERRIDABLE.filter((k) => process.env["CFG_" + k]).join(", ") + "）");
@@ -459,5 +658,6 @@ if (CHECK) {
     const p = path.join(ROOT, rel);
     if (!fs.existsSync(p) || fs.readFileSync(p, "utf8") !== content) { fs.writeFileSync(p, content); n++; }
   }
+  writeBlog(ROOT);
   console.log("build: " + outputs.size + " ファイルを確認、" + n + " ファイルを更新");
 }

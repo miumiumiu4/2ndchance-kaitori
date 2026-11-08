@@ -1,0 +1,54 @@
+# 毎朝 7時（日本時間）に組み立て直して公開する。content/posts の記事のうち、その日の日付になったものが出る。
+# 中身は pages.yml と同じ内容（組み立て → テスト → 公開用の写し → 公開）。片方を直したら、もう片方も同じに直す。
+# 注意：GitHub の schedule は数十分遅れることがある。リポジトリに 60日間 push が無いと schedule が止まる（README の「記事の予約公開」）。
+name: Publish daily
+on:
+  schedule:
+    - cron: "0 22 * * *"   # UTC 22:00 = 日本時間 07:00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 組み立て
+        run: node tools/build.mjs
+      - name: テスト
+        run: npm test
+      - name: 公開用の写しを作る（設定を差し込む）
+        run: node tools/build.mjs --out _site
+        env:
+          CFG_SITE_URL: ${{ vars.CFG_SITE_URL }}
+          CFG_LINE_URL: ${{ vars.CFG_LINE_URL }}
+          CFG_TEL: ${{ vars.CFG_TEL }}
+          CFG_GAS_URL: ${{ vars.CFG_GAS_URL }}
+          CFG_HOURS: ${{ vars.CFG_HOURS }}
+          CFG_OPENING_HOURS_SPEC: ${{ vars.CFG_OPENING_HOURS_SPEC }}
+          CFG_OPENING_NOTE: ${{ vars.CFG_OPENING_NOTE }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
