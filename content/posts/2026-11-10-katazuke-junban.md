@@ -3,7 +3,7 @@ title: 片付けを始める順番
 date: 2026-11-10
 summary: 片付けをどこから始めるか、順番の目安をまとめます。（執筆中）
 tags: [片付け, 遺品整理]
-status: scheduled
+status: draft
 ---
 執筆中です。本文はあとで入ります。
 
