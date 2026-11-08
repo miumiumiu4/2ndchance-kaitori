@@ -38,6 +38,8 @@ jobs:
           CFG_HOURS: ${{ vars.CFG_HOURS }}
           CFG_OPENING_HOURS_SPEC: ${{ vars.CFG_OPENING_HOURS_SPEC }}
           CFG_OPENING_NOTE: ${{ vars.CFG_OPENING_NOTE }}
+          CFG_AIRCON_REF_PARAM: ${{ vars.CFG_AIRCON_REF_PARAM }}
+          CFG_AIRCON_REF_CODE: ${{ vars.CFG_AIRCON_REF_CODE }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

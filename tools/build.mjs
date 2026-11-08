@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { mdToHtml } from "./md.mjs";
 import { loadPosts, publishedPosts, todayJST, isValidDate } from "./blog.mjs";
+import { airconItem, airconLink } from "./aircon.mjs";
 
 // CSS の版番号（中身のハッシュ先頭8桁）。更新のたびに変わり、ブラウザが古い CSS を使い続けない。
 const CSS_VER = createHash("sha256").update(fs.readFileSync(new URL("../css/site.css", import.meta.url))).digest("hex").slice(0, 8);
@@ -37,7 +38,7 @@ const { CONFIG: BASE_CONFIG } = await import(pathToFileURL(path.join(ROOT, "js/c
 const QC = await import(pathToFileURL(path.join(ROOT, "js/quote-core.js")).href);
 
 // 公開用の写しにだけ、環境変数（GitHub の Actions Variables）で値を差し込む
-const OVERRIDABLE = ["SITE_URL", "LINE_URL", "TEL", "GAS_URL", "HOURS", "OPENING_HOURS_SPEC", "OPENING_NOTE"];
+const OVERRIDABLE = ["SITE_URL", "LINE_URL", "TEL", "GAS_URL", "HOURS", "OPENING_HOURS_SPEC", "OPENING_NOTE", "AIRCON_REF_PARAM", "AIRCON_REF_CODE"];
 const CONFIG = { ...BASE_CONFIG };
 if (OUT) {
   for (const k of OVERRIDABLE) {
@@ -329,6 +330,10 @@ const FRAGMENTS = {
   "results-top": (p, rel) => resultsCards(p, rel, 3),
   hours: () => (CONFIG.HOURS ? esc(CONFIG.HOURS) : PENDING),
   "latest-posts": (p, rel) => latestPosts(rel),
+  // ありがとうエアコンへの送客（リンクは config の AIRCON_* から tools/aircon.mjs が作る）
+  "aircon-item": () => airconItem(CONFIG),
+  "aircon-card": () => airconItem(CONFIG, "エアコンのクリーニング・取付取外し", "ありがとうエアコンの予約（提携店のページが開きます）"),
+  "aircon-link": () => airconLink(CONFIG),
   "canonical": (p) => (pageUrl(p.path) ? `<link rel="canonical" href="${esc(pageUrl(p.path))}">` : "")
 };
 

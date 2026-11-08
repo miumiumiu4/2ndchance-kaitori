@@ -14,7 +14,8 @@
 | `privacy/` | 個人情報の取扱い（**仮**。オーナー確定前） |
 | `404.html` | 見つからないページ |
 | `css/site.css` | 見た目（モバイル優先・文字大きめ・コントラスト 4.5 以上） |
-| `js/config.js` | 設定 1か所（サイト名・URL・LINE・電話・GAS・営業時間） |
+| `js/config.js` | 設定 1か所（サイト名・URL・LINE・電話・GAS・営業時間・エアコン送客） |
+| `tools/aircon.mjs` | ありがとうエアコンの予約フォームへのリンク（紹介番号のパラメータ）を作る純粋関数 |
 | `js/quote-core.js` | 概算の式（純粋関数）。画面・GAS・AI 向け API が同じ式を使う |
 | `js/form.js` | フォームの画面（入力→確認→送信→受付番号）。フォームが見えたら固定バーの上段に概算パネル |
 | `js/estimate-text.js` | 概算の金額の言い方（純粋関数）。概算の箱と固定バーの概算パネルが同じ文字列を使う |
@@ -62,7 +63,20 @@ npm test               # 全部緑になってからコミット
 | `OPENING_HOURS_SPEC` | 任意。schema.org の形（例の形 `Mo-Sa 09:00-18:00`） | JSON-LD から省略 |
 | `OPENING_NOTE` | 上部のお知らせ帯 | 帯を出さない |
 
-**電話・LINE・GAS の URL はリポジトリに書かない**（`tests/secret-grep.mjs` が止める）。GitHub の Settings → Secrets and variables → Actions → **Variables** に `CFG_SITE_URL`・`CFG_LINE_URL`・`CFG_TEL`・`CFG_GAS_URL`・`CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE` として入れると、公開のときに `node tools/build.mjs --out _site` が公開用の写しにだけ差し込む。
+**電話・LINE・GAS の URL はリポジトリに書かない**（`tests/secret-grep.mjs` が止める）。GitHub の Settings → Secrets and variables → Actions → **Variables** に `CFG_SITE_URL`・`CFG_LINE_URL`・`CFG_TEL`・`CFG_GAS_URL`・`CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`（エアコン送客は `CFG_AIRCON_REF_PARAM`・`CFG_AIRCON_REF_CODE`）として入れると、公開のときに `node tools/build.mjs --out _site` が公開用の写しにだけ差し込む。
+
+### エアコン送客の設定（ありがとうエアコン）
+`seiri/` の4か所・`kataduke/` の「片付けの後のエアコン」・トップの「6. 申し込む」に、提携店「ありがとうエアコン」の予約フォームへのリンクを出す。リンクは `js/config.js` の3項目から `tools/aircon.mjs` が作り、build が差し込み口（`aircon-item`・`aircon-card`・`aircon-link`）に入れる。ページに href を手で書かない。
+
+| 項目 | 中身 | 空のとき |
+|---|---|---|
+| `AIRCON_BOOKING_URL` | 予約フォームの公開 URL（秘密ではない） | — |
+| `AIRCON_REF_PARAM` | 流入経路のパラメータ名。今は `ref` | — |
+| `AIRCON_REF_CODE` | 紹介番号（12月から会社番号） | パラメータ無しの素の URL でリンク（ボタンは出す） |
+
+1. 紹介番号が来たら `AIRCON_REF_CODE` に入れる（または Actions Variables の `CFG_AIRCON_REF_CODE`）。
+2. `node tools/build.mjs` → `npm test` → push。リンクは `…/arigatou-booking/?ref=<紹介番号>` になる。
+3. **12月の凍結明け**：`AIRCON_REF_PARAM` を `partner`、`AIRCON_REF_CODE` を会社番号（`C0xx`）にして、同じく build → test → push。
 
 ### 2. `data/prices.json`
 - 金額は共同代表が決めたものだけ入れる。`null` の間は画面・料金表・AI 向けが「要相談」と出す。
