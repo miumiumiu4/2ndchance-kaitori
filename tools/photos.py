@@ -3,8 +3,8 @@
 
   python3 tools/photos.py <元写真のフォルダ> [--out assets/shop]
 
-- 1品ずつトリミング（値札・周りの商品・人をなるべく外す）。外しきれない値札・掲示はぼかす。
-- 冷蔵庫（aqua-fridge-355）の扉に貼られたチラシ（電話番号・LINE の QR）は扉の色で塗りつぶしてからぼかす。
+- 1品ずつトリミング（周りの商品・人をなるべく外す）。店の値札はそのまま見せる（ぼかさない。オーナー指示 2026-11-10）。
+- 冷蔵庫（aqua-fridge-355）の扉に貼られたチラシ（電話番号・LINE の QR）は扉の色で塗りつぶす。
 - 長辺 1200px（<id>.jpg）とサムネ 480px（<id>-480.jpg）、JPEG 品質 80。
 - EXIF・GPS・ICC などのメタデータは一切残さない（画素だけを新しい画像に貼り直して保存）。
 - 座標は向きを直した元写真に対する割合（0〜1）で (左, 上, 右, 下)。
@@ -16,17 +16,17 @@ from PIL import Image, ImageFilter, ImageOps, ImageStat
 
 # id: (元写真のファイル名, トリミング枠, ぼかす枠のリスト, 塗りつぶす枠のリスト)
 PHOTOS = {
-    "figurine-children": ("figurine_2280.jpg", (0.17, 0.15, 0.78, 0.92), [(0.34, 0.46, 0.56, 0.59)], []),
-    "bronze-vase": ("bronze_vase_2800.jpg", (0.19, 0.08, 0.82, 1.0), [(0.45, 0.39, 0.56, 0.46)], []),
-    "wood-statue": ("wood_statue_5650.jpg", (0.15, 0.02, 0.72, 1.0), [(0.43, 0.09, 0.57, 0.16)], []),
-    "citizen-wall-clock": ("citizen_clock_3300.jpg", (0.10, 0.085, 0.84, 0.99), [(0.76, 0.68, 0.86, 0.77)], []),
-    "cupboard-white": ("cupboard_white_price_unclear.jpg", (0.02, 0.0, 0.93, 0.80), [(0.17, 0.04, 0.28, 0.14)], []),
-    "rice-cooker-2024": ("rice_cooker_new_2024_8200.jpg", (0.12, 0.15, 0.93, 0.92), [(0.47, 0.32, 0.63, 0.51)], []),
-    "drum-washer": ("drum_washer_45000.jpg", (0.21, 0.06, 0.92, 0.92), [(0.57, 0.28, 0.79, 0.49)], []),
+    "figurine-children": ("figurine_2280.jpg", (0.17, 0.15, 0.78, 0.92), [], []),
+    "bronze-vase": ("bronze_vase_2800.jpg", (0.19, 0.08, 0.82, 1.0), [], []),
+    "wood-statue": ("wood_statue_5650.jpg", (0.15, 0.02, 0.72, 1.0), [], []),
+    "citizen-wall-clock": ("citizen_clock_3300.jpg", (0.10, 0.085, 0.84, 0.99), [], []),
+    "cupboard-white": ("cupboard_white_price_unclear.jpg", (0.02, 0.0, 0.93, 0.80), [], []),
+    "rice-cooker-2024": ("rice_cooker_new_2024_8200.jpg", (0.12, 0.15, 0.93, 0.92), [], []),
+    "drum-washer": ("drum_washer_45000.jpg", (0.21, 0.06, 0.92, 0.92), [], []),
     "aqua-fridge-355": ("aqua_fridge_355L_2024_65000_HAS_POSTER_QR.jpg", (0.26, 0.03, 0.70, 0.97), [], [(0.29, 0.04, 0.75, 0.47)]),
-    "fitness-bike": ("fitness_bike_price_unknown.jpg", (0.22, 0.02, 0.68, 0.99), [(0.44, 0.13, 0.52, 0.19)], []),
-    "industrial-fan": ("industrial_fan_5500.jpg", (0.18, 0.04, 0.76, 1.0), [(0.41, 0.26, 0.53, 0.34)], []),
-    "dresser-mirror": ("dresser_price_unknown.jpg", (0.02, 0.02, 0.80, 0.88), [(0.08, 0.02, 0.22, 0.09)], []),
+    "fitness-bike": ("fitness_bike_price_unknown.jpg", (0.22, 0.02, 0.68, 0.99), [], []),
+    "industrial-fan": ("industrial_fan_5500.jpg", (0.18, 0.04, 0.76, 1.0), [], []),
+    "dresser-mirror": ("dresser_price_unknown.jpg", (0.02, 0.02, 0.80, 0.88), [], []),
     "electric-heater": ("electric_heater_soldout.jpg", (0.13, 0.18, 0.855, 0.85), [], []),
     "acoustic-guitar": ("acoustic_guitar_price_unknown.jpg", (0.20, 0.0, 0.80, 0.99), [], []),
     # 商品ではない紹介用（衣類の店頭販売）
