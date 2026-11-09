@@ -18,6 +18,8 @@
 | `tools/aircon.mjs` | ありがとうエアコンの予約フォームへのリンク（紹介番号のパラメータ）を作る純粋関数 |
 | `js/quote-core.js` | 概算の式（純粋関数）。画面・GAS・AI 向け API が同じ式を使う |
 | `js/form.js` | フォームの画面（入力→確認→送信→受付番号）。フォームが見えたら固定バーの上段に概算パネル |
+| `js/delivery-core.js` | 郵便番号 → 配送料の式（純粋関数）。店からの直線距離 × 1.3 を道のりの目安にして `delivery_tiers` に当てはめる |
+| `data/postal/` | 郵便番号（7桁）→ 緯度経度の表（上3桁ごと）。`tools/build-postal.mjs` が作る生成物（コミットする） |
 | `js/estimate-text.js` | 概算の金額の言い方（純粋関数）。概算の箱と固定バーの概算パネルが同じ文字列を使う |
 | `data/*.json` | 価格表・品目・エリア・FAQ・実績（公開。個人情報は入れない） |
 | `assets/icons/` | 品目9つ＋トラック4サイズの線画アイコン（仮置き） |
@@ -105,6 +107,21 @@ npm test               # 全部緑になってからコミット
 - GitHub Pages のままドメインだけ変える：リポジトリの直下に `CNAME`（中身はドメイン名1行）を置き、DNS を設定する（DNS はオーナー判断）。`CFG_SITE_URL` を新しい URL にする。
 - 自社サーバーに置く：`node tools/build.mjs --out _site`（`CFG_*` を環境変数で渡す）で作った `_site/` の中身をそのまま置く。
 - 404 ページはプロジェクトサイト（`/リポジトリ名/`）を想定して入口を推し量る。独自ドメインの直下なら `/` を使う。
+
+## 配送料（郵便番号 → 距離 → 料金）
+- 料金は `data/prices.json` の `delivery_tiers`（店のチラシの表）。式は `js/delivery-core.js`：店（`STORE_LATLNG`）からの直線距離（haversine）× 1.3 を道のりの目安にし、区分の境目 ±1km は「お届けの前に確定」と出す。表に無い番号・50km 超は要相談。送料無料の商品は 50km 以内なら 0 円。
+- 郵便番号 → 緯度経度の表 `data/postal/<上3桁>.json`（`{ "8611112": [32.8872, 130.7891] }`）は生成物。熊本・福岡・大分・佐賀・長崎・宮崎・鹿児島の郵便番号のうち、店から直線 60km 以内だけを入れている。
+- 作り直し（郵便番号の改定時など）：
+  ```sh
+  pip download posuto --no-deps -d /tmp/posuto && (cd /tmp/posuto && unzip -o -q posuto-*.whl)
+  node tools/build-postal.mjs --db /tmp/posuto/posuto/postaldata.db --cache /tmp/geolonia
+  npm test
+  ```
+- 突合：町域名が一致する行（小字なしを優先）→ 町域名で始まる行（丁目違い）の平均 → 市区町村の平均座標。海を挟む地域（島原・天草など）は直線距離が道のりより大きく短くなるため、区分は目安。
+- **出典・ライセンス**
+  - 郵便番号 → 住所：日本郵便「郵便番号データ」（Python パッケージ [posuto](https://pypi.org/project/posuto/) に同梱の SQLite を使用）
+  - 町域 → 緯度経度：[Geolonia 住所データ（japanese-addresses）](https://github.com/geolonia/japanese-addresses)（CC BY 4.0）。座標は小数4桁に丸めて加工しています。
+- 計算のたびに、郵便番号・区分・日時だけを GAS に送ってシート「配送料ログ」に残す（名前は送らない。1つのタブで1回だけ）。
 
 ## 写真の置き方
 `assets/items/<品目>-<番号>.webp`（例 `fridge-01.webp`）。`data/results.json` の `photo` で参照する。人の顔・名前・住所が写った写真は使わない。詳しくは `assets/items/README.md`。
