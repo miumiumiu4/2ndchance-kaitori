@@ -98,6 +98,8 @@ try {
   await page.fill("#f-name", "やまだ はなこ");
   await page.fill("#f-tel", "0" + "9000000000");
   await page.fill("#f-addr", "熊本県合志市（試験）");
+  await page.fill("#f-email", "test" + "@" + "example.invalid");
+  check("メルマガのチェックは既定でオン", await page.isChecked("#f-news"));
   const d = await page.getAttribute("#date1", "min");
   await page.fill("#date1", d);
   await page.check("#f-consent");
@@ -106,6 +108,7 @@ try {
   const confirmText = await page.textContent("#q-confirm");
   check("確認画面：カナに自動変換", confirmText.includes("ヤマダ ハナコ"));
   check("確認画面：概算が残る", confirmText.includes("¥24,000"));
+  check("確認画面：メールとお知らせの受け取り", confirmText.includes("example.invalid") && confirmText.includes("受け取る"));
   const sendBtn = page.locator("#q-confirm button.btn-form");
   check("送信ボタン：GAS_URL 空なら「準備中」で押せない", (await sendBtn.isDisabled()) && (await sendBtn.textContent()).includes("準備中"));
   await page.screenshot({ path: path.join(ROOT, "screens", "form-a-confirm-390.png"), fullPage: false });

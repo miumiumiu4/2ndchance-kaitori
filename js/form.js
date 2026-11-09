@@ -3,6 +3,7 @@
 import { CONFIG } from "./config.js";
 import * as Q from "./quote-core.js";
 import { yen, fmtRange, estimateValueText, stickyEstimate } from "./estimate-text.js";
+import { NEWSLETTER_TEXT, isEmail, postal3, browserMeta, newsletterRecord } from "./form-common.js";
 
 const FORM_NAMES = { A: "出張買取", B: "不用品回収", C: "片付け（遺品整理・生前整理など）" };
 const YEAR_LABELS = { within: "目安年数以内", over: "目安年数を超えている", unknown: "わからない" };
@@ -220,9 +221,13 @@ ${opLines ? `<ul>${opLines}</ul>` : ""}${hasItems ? `<ul>${lines}</ul>` : ""}${p
 <label class="f" for="f-tel">電話番号<span class="req">必須</span></label>
 <input type="tel" id="f-tel" name="tel" autocomplete="tel" inputmode="tel">
 <p class="hint">日時の相談のため、こちらからお電話します。</p>
-<label class="f" for="f-email">メールアドレス<span class="opt">任意</span></label>
+<label class="f" for="f-email">メールアドレス<span class="req">必須</span></label>
 <input type="email" id="f-email" name="email" autocomplete="email" inputmode="email">
-<p class="hint">入れると、受付番号つきの確認メールが届きます。</p>
+<p class="hint">受付番号つきの確認メールをお送りします。</p>
+<label class="choice" style="margin-top:10px" for="f-news"><input type="checkbox" id="f-news" name="newsletter" checked><div><b>${esc(NEWSLETTER_TEXT)}</b><span>${esc(CONFIG.MAIL_PERK_TEXT || "")}${CONFIG.MAIL_PERK_TEXT ? "。" : ""}いつでも配信を止められます。</span></div></label>
+<label class="f" for="f-line">LINE の名前<span class="opt">任意</span></label>
+<input type="text" id="f-line" name="line_name" autocomplete="off" maxlength="40">
+<p class="hint">LINE で写真を送るときに、どなたか分かるように。</p>
 <label class="f" for="f-zip">郵便番号<span class="opt">任意</span></label>
 <input type="text" id="f-zip" name="zip" autocomplete="postal-code" inputmode="numeric" style="max-width:12em">
 <label class="f" for="f-addr">ご住所<span class="req">必須</span></label>
@@ -396,7 +401,8 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
     if (!tel) bad(el.tel, "電話番号を入れてください。");
     else if (!/^0\d{9,10}$/.test(tel)) bad(el.tel, "電話番号の桁数を確かめてください（0から始まる10桁か11桁）。");
     const mail = el.email.value.trim();
-    if (mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) bad(el.email, "メールアドレスの形を確かめてください。");
+    if (!mail) bad(el.email, "メールアドレスを入れてください。");
+    else if (!isEmail(mail)) bad(el.email, "メールアドレスの形を確かめてください。");
     const zip = toHalf(el.zip.value).replace(/[^0-9]/g, "");
     if (zip && zip.length !== 7) bad(el.zip, "郵便番号は7桁で入れてください。");
     if (!el.address.value.trim()) bad(el.address, "ご住所を入れてください。");
@@ -417,7 +423,7 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
   }
 
   // ---------- 送る中身 ----------
-  function payload() {
+  async function payload() {
     const el = form.elements;
     const input = currentInput();
     const files = el.photos.files ? Array.from(el.photos.files) : [];
@@ -431,9 +437,13 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
         name_kana: el.name_kana.value.trim(),
         tel: toHalf(el.tel.value).trim(),
         email: el.email.value.trim(),
+        line_name: el.line_name.value.trim().slice(0, 40),
         zip: toHalf(el.zip.value).trim(),
         address: el.address.value.trim()
       },
+      newsletter: await newsletterRecord(el.newsletter.checked),
+      postal3: postal3(el.zip.value),
+      meta: browserMeta(),
       dates: [1, 2, 3].map((n) => ({ date: el["date" + n].value, time: el["date" + n].value ? el["time" + n].value : "" })).filter((d) => d.date),
       photos: { count: files.length, names: files.map((f) => f.name.slice(0, 80)).slice(0, 20) },
       payment: (PAYMENTS.find((p) => p.id === el.payment.value) || PAYMENTS[0]).id,
@@ -469,10 +479,10 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
   const tabsEl = root.querySelector(".tabs");
   let current = null;
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!validate()) return;
-    current = payload();
+    current = await payload();
     const p = current;
     const rows = [
       ["お申し込みの種類", FORM_NAMES[p.form]],
@@ -480,7 +490,9 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
       ["概算", quoteText(p)],
       ["お名前（カナ）", p.customer.name_kana],
       ["電話番号", p.customer.tel],
-      ["メールアドレス", p.customer.email || "（なし）"],
+      ["メールアドレス", p.customer.email],
+      ["メールのお知らせ", p.newsletter.opt_in ? "受け取る" : "受け取らない"],
+      ["LINE の名前", p.customer.line_name || "（なし）"],
       ["郵便番号", p.customer.zip || "（なし）"],
       ["ご住所", p.customer.address],
       ["ご希望の日時", p.dates.map((d, i) => `第${i + 1}希望 ${d.date.replace(/-/g, "/")} ${d.time}`).join("\n")],
@@ -531,7 +543,7 @@ ${ready ? '<button type="button" class="btn btn-form" data-act="send">この内�
       doneBox.hidden = false;
       doneBox.innerHTML = `<div class="done" role="status"><p style="margin:0">お申し込みを受け付けました。</p>
 ${j.id ? `<p>受付番号<span class="receipt">${esc(j.id)}</span></p>` : "<p>受付番号は確認のご連絡でお伝えします。</p>"}
-<p>こちらからお電話して、伺う日時を相談します。${current.customer.email ? "確認メールもお送りしました。" : ""}</p>
+<p>こちらからお電話して、伺う日時を相談します。確認メールもお送りしました。</p>
 <p style="margin:0">写真は LINE で送ってください（受付番号を添えてください）。</p></div>`;
       doneBox.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
