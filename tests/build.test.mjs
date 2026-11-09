@@ -69,10 +69,15 @@ test("provisional: true のとき、料金ページ・トップ・フォーム�
   assert.match(form, /仮の目安（調整中）/);
   const llms = read("llms.txt");
   assert.ok(llms.includes("仮の目安（調整中）") && llms.includes(prices.provisional_note));
-  // 料金ページの表に「要相談」が残っていない（値が全部入っている）
+  // 料金ページの表の「要相談」は、値が null の所（生前整理の確認中・配送 50km 超）だけ
   const table = /<!--build:prices-->([\s\S]*?)<!--\/build:prices-->/.exec(read("price/index.html"))[1];
-  assert.ok(!table.includes("要相談"), "料金表に要相談が残る");
+  const nulls = Object.values(prices.cleanup_by_kind).flat().filter((r) => r.price_from === null).length
+    + prices.delivery_tiers.filter((d) => d.fee === null).length;
+  assert.equal((table.match(/<span class="consult">要相談<\/span>/g) || []).length, nulls, "料金表の要相談の数");
   assert.match(table, /¥50,000〜/);
+  assert.match(table, /1R・1K/);
+  assert.match(table, /クオカード/);
+  assert.match(table, /階段での運び出し<\/td><td class="num">無料/);
 });
 
 test("llms.txt・sitemap.xml・robots.txt・gas/QuoteCore.gs がある", () => {

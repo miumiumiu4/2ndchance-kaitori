@@ -9,7 +9,7 @@
 <!--build:canonical-->
 
 <!--/build:canonical-->
-<link rel="stylesheet" href="../css/site.css?v=0dfd5227">
+<link rel="stylesheet" href="../css/site.css?v=3fccb721">
 <link rel="icon" href="../assets/icons/truck-mini.svg" type="image/svg+xml">
 <!--build:jsonld-->
 <script type="application/ld+json">
@@ -25,7 +25,13 @@
     "@type": "PostalAddress",
     "addressRegion": "熊本県",
     "addressLocality": "合志市",
+    "streetAddress": "幾久富1866-941",
     "addressCountry": "JP"
+   },
+   "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": 32.8872,
+    "longitude": 130.7891
    },
    "areaServed": [
     {
@@ -86,7 +92,7 @@
    "@type": "Service",
    "name": "出張買取（生活家電・家具）",
    "serviceType": "買取",
-   "description": "冷蔵庫・洗濯機・電子レンジ・ガスコンロ・ソファ・ダイニングテーブル・食器棚・カーペット・カーテンなどを訪問して査定し、買い取ります。",
+   "description": "冷蔵庫・洗濯機・電子レンジ・ガスコンロ・ソファ・ダイニングテーブル・食器棚・カーペット・カーテンなどを訪問して査定し、買い取ります。家電の年式の目安は5年以内。買取金額の合計が15,000円以上で、クオカード500円分をプレゼントします（訪問査定で確定した金額が対象）。エアコンクリーニング・ハウスクリーニングと同じ日に買取・回収の査定をすると、移動と時間が省ける分を還元して査定額を20%アップします（例：10,000円の冷蔵庫→12,000円）。",
    "provider": {
     "@id": "#business"
    },
@@ -115,7 +121,7 @@
      "name": "出張費や査定料はかかりますか？",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "合志市から30km圏内なら、出張費・査定料は無料です。圏外の場所はお申し込みの際にご相談ください。"
+      "text": "店から30km圏内なら、出張費・査定料は無料です。圏外の場所はお申し込みの際にご相談ください。"
      }
     },
     {
@@ -123,7 +129,7 @@
      "name": "何年前の家電まで買い取れますか？",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "品目ごとに年式の目安があります。目安を超えた家電は買取ではなく回収扱いとなり、費用のご相談になります。製造年は本体のシールで確認できます。分からなければ「わからない」で申し込んでください。"
+      "text": "家電は5年以内（2020年以降の製造）が買取の目安です。家具は10年以内が目安です。目安を超えた家電は買取ではなく回収扱いとなり、費用のご相談になります。製造年は本体のシールで確認できます。分からなければ「わからない」で申し込んでください。"
      }
     },
     {
@@ -144,6 +150,22 @@
     },
     {
      "@type": "Question",
+     "name": "買取の特典はありますか？",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "買取金額の合計が15,000円以上で、クオカード500円分をプレゼントします。また、エアコンクリーニング・ハウスクリーニングと同じ日に査定すると、移動と時間が省ける分を還元して買取額を20%アップします（例：10,000円の冷蔵庫→12,000円）。"
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "どこでも値段がつかないと言われた物も見てもらえますか？",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "はい。年式の目安以内の家電・家具なら、他で値段がつかなかった物でも、当店では最低500円〜1,000円はお付けします（品目によります）。"
+     }
+    },
+    {
+     "@type": "Question",
      "name": "当日に用意するものは？",
      "acceptedAnswer": {
       "@type": "Answer",
@@ -155,7 +177,7 @@
      "name": "お金はいつ受け取れますか？",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "その場で現金でお渡しするのが基本です。高額の場合は振込になることがあります（この方針は現在確認中です）。"
+      "text": "買取代金は、その場で現金でお渡しするのが基本です。高額の場合は銀行振込でお支払いします。"
      }
     },
     {
@@ -171,7 +193,7 @@
      "name": "大きな家具を2階から降ろせますか？",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "はい、スタッフが運び出します。階段での運び出しや解体が必要な場合は、オプション料金がかかることがあります。"
+      "text": "はい、スタッフが運び出します。2階からの運び出しも無料です。解体が必要な場合は、不用品回収では1点2,000円、片付けでは無料です。"
      }
     },
     {
@@ -197,6 +219,14 @@
       "@type": "Answer",
       "text": "公式LINEに写真を送っていただければ、目安をお伝えします。品物の全体と、製造年のシールが写っていると目安が出しやすくなります。"
      }
+    },
+    {
+     "@type": "Question",
+     "name": "費用の支払い方法は？",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "不用品回収・片付けの費用や、購入商品の代金・配送料は、現金・クレジットカード・PayPay でお支払いいただけます。"
+     }
     }
    ]
   }
@@ -212,7 +242,7 @@
 <a class="brand" href="../">2nd chance recycle<small>買取・片付け｜熊本県合志市</small></a>
 <nav class="gnav" aria-label="ページ一覧"><ul><li><a href="../">トップ</a></li><li><a href="../kaitori/">買取</a></li><li><a href="../kataduke/">不用品回収・片付け</a></li><li><a href="../seiri/">遺品整理など</a></li><li><a href="../flow/" aria-current="page">流れ・FAQ</a></li><li><a href="../price/">料金・実績</a></li></ul></nav>
 </div></header>
-<div class="notice" role="note"><div class="wrap">このサイトは公開準備中です。料金・買取の目安・出張エリアは共同代表の確認後に確定します。</div></div>
+<div class="notice" role="note"><div class="wrap">料金は共同代表の確認を経た仮の目安です。LINE・電話は準備中です。</div></div>
 <!--/build:header-->
 <main id="main" class="wrap">
 <section class="hero" aria-labelledby="h-flow">
@@ -246,28 +276,32 @@
 <section class="section" id="money" aria-labelledby="h-money">
   <h2 id="h-money">お金の受け取り方</h2>
   <ul class="check">
-    <li><b>その場で現金</b>：査定にご納得いただいたら、その場でお渡しするのが基本です。</li>
-    <li><b>高額の場合は振込</b>：金額によっては、後日のお振込みになることがあります。</li>
+    <li><b>買取代金は現金が基本</b>：査定にご納得いただいたら、その場でお渡しします。</li>
+    <li><b>高額の場合は銀行振込</b>：金額によっては、銀行振込でお支払いします。</li>
   </ul>
-  <p class="callout-warn">お金の受け取り方は、現在方針を確認中です。決まりしだいここに載せます。</p>
-  <p>片付け・不用品回収の費用は、現金・PayPay・請求リンク（後日メールやLINEでお送りする支払い用のリンク）からお選びいただける予定です。</p>
+  <h3 style="margin-top:14px">お客様にお支払いいただく場合</h3>
+  <p>不用品回収・片付けの費用、購入商品の代金・配送料は、<b>現金・クレジットカード・PayPay</b> でお支払いいただけます。</p>
+  <p>出張費・査定料は、店から30km圏内なら無料です。</p>
 </section>
 
 <section class="section" id="faq" aria-labelledby="h-faq">
   <h2 id="h-faq">よくある質問</h2>
 <!--build:faq-->
 <details class="faq"><summary>1点だけでも来てもらえますか？</summary><div>はい、冷蔵庫1台・ソファ1台からでも伺います。ほかにも手放したい物があれば、同じ日にまとめて見ます。</div></details>
-<details class="faq"><summary>出張費や査定料はかかりますか？</summary><div>合志市から30km圏内なら、出張費・査定料は無料です。圏外の場所はお申し込みの際にご相談ください。</div></details>
-<details class="faq"><summary>何年前の家電まで買い取れますか？</summary><div>品目ごとに年式の目安があります。目安を超えた家電は買取ではなく回収扱いとなり、費用のご相談になります。製造年は本体のシールで確認できます。分からなければ「わからない」で申し込んでください。</div></details>
+<details class="faq"><summary>出張費や査定料はかかりますか？</summary><div>店から30km圏内なら、出張費・査定料は無料です。圏外の場所はお申し込みの際にご相談ください。</div></details>
+<details class="faq"><summary>何年前の家電まで買い取れますか？</summary><div>家電は5年以内（2020年以降の製造）が買取の目安です。家具は10年以内が目安です。目安を超えた家電は買取ではなく回収扱いとなり、費用のご相談になります。製造年は本体のシールで確認できます。分からなければ「わからない」で申し込んでください。</div></details>
 <details class="faq"><summary>壊れている家電も引き取ってもらえますか？</summary><div>買取はできませんが、不用品回収として引き取れます。回収費用の目安は料金ページでご確認ください。</div></details>
 <details class="faq"><summary>見積りの金額から変わることはありますか？</summary><div>画面の金額は目安です。実物を見て、状態や付属品で最終額を決めます。訪問時に金額をご説明し、ご納得いただいてから進めます。</div></details>
+<details class="faq"><summary>買取の特典はありますか？</summary><div>買取金額の合計が15,000円以上で、クオカード500円分をプレゼントします。また、エアコンクリーニング・ハウスクリーニングと同じ日に査定すると、移動と時間が省ける分を還元して買取額を20%アップします（例：10,000円の冷蔵庫→12,000円）。</div></details>
+<details class="faq"><summary>どこでも値段がつかないと言われた物も見てもらえますか？</summary><div>はい。年式の目安以内の家電・家具なら、他で値段がつかなかった物でも、当店では最低500円〜1,000円はお付けします（品目によります）。</div></details>
 <details class="faq"><summary>当日に用意するものは？</summary><div>買取では、法律（古物営業法）で本人確認が必要です。運転免許証やマイナンバーカードなど、住所・氏名・生年月日が分かる書類をご用意ください。</div></details>
-<details class="faq"><summary>お金はいつ受け取れますか？</summary><div>その場で現金でお渡しするのが基本です。高額の場合は振込になることがあります（この方針は現在確認中です）。</div></details>
+<details class="faq"><summary>お金はいつ受け取れますか？</summary><div>買取代金は、その場で現金でお渡しするのが基本です。高額の場合は銀行振込でお支払いします。</div></details>
 <details class="faq"><summary>家族の代わりに申し込めますか？</summary><div>お申し込みはご家族でも大丈夫です。買取の当日は、品物の持ち主か、持ち主から頼まれた方の本人確認をさせていただきます。</div></details>
-<details class="faq"><summary>大きな家具を2階から降ろせますか？</summary><div>はい、スタッフが運び出します。階段での運び出しや解体が必要な場合は、オプション料金がかかることがあります。</div></details>
+<details class="faq"><summary>大きな家具を2階から降ろせますか？</summary><div>はい、スタッフが運び出します。2階からの運び出しも無料です。解体が必要な場合は、不用品回収では1点2,000円、片付けでは無料です。</div></details>
 <details class="faq"><summary>片付けと買取を一緒に頼めますか？</summary><div>できます。買い取れる物は買取額を片付けの費用から差し引くので、お会計が少なくなることがあります。</div></details>
 <details class="faq"><summary>立ち会えなくても大丈夫ですか？</summary><div>買取は本人確認が必要なため、立ち会いをお願いしています。片付けで立ち会いが難しい場合は、事前の打ち合わせでご相談ください。</div></details>
 <details class="faq"><summary>写真で先に金額を知りたいです。</summary><div>公式LINEに写真を送っていただければ、目安をお伝えします。品物の全体と、製造年のシールが写っていると目安が出しやすくなります。</div></details>
+<details class="faq"><summary>費用の支払い方法は？</summary><div>不用品回収・片付けの費用や、購入商品の代金・配送料は、現金・クレジットカード・PayPay でお支払いいただけます。</div></details>
 <!--/build:faq-->
 </section>
 
@@ -279,14 +313,14 @@
 <span class="btn btn-tel is-disabled btn-block" aria-disabled="true">電話する<small>準備中</small></span>
 <a class="btn btn-form btn-block" href="../kaitori/#form-a">買取の概算フォーム</a>
 </div>
-<p class="muted" style="margin-top:8px">LINEは写真を送ると目安をお伝えできます（主な窓口）。電話はタップで発信します。受付時間：<span class="tag-pending">準備中</span></p>
+<p class="muted" style="margin-top:8px">LINEは写真を送ると目安をお伝えできます（主な窓口）。電話はタップで発信します。営業時間：10:00〜19:00</p>
 <!--/build:contact-->
 </section>
 </main>
 <!--build:footer-->
 <footer class="site-footer"><div class="wrap">
 <p><a href="../privacy/">個人情報の取扱い</a></p>
-<p>2nd chance recycle（熊本県合志市）｜受付時間：準備中｜電話：準備中</p>
+<p>2nd chance recycle｜熊本県合志市幾久富1866-941｜営業時間：10:00〜19:00｜電話：準備中</p>
 <p class="muted">表示している金額は目安です。最終額は訪問査定で確定します。金・貴金属の買取は準備中です。</p>
 </div></footer>
 <!--/build:footer-->

@@ -8,15 +8,15 @@ export const fmtRange = (a, b) => (a === b ? fmtBill(a) : fmtBill(a) + " 〜 " +
 export const ESTIMATE_LABEL = { A: "買取見込み", B: "お会計の目安", C: "お会計の目安" };
 
 // 概算の値の文字列。form: "A"|"B"|"C"、r: quoteFromInput の返り値、
-// chosen: B は量・C は間取りを選んだか（A では使わない）
+// chosen: B は量・C は間取り（倉庫・草刈りは坪数）を選んだか（A では使わない）
 export function estimateValueText(form, r, chosen) {
   if (form === "A") {
     const hasItems = r.buyback.lines.length > 0;
     if (!hasItems) return "品目を選んでください";
     if (r.undetermined) return "要相談";
-    return r.max === 0 ? "0円（回収扱い）" : "0円 〜 " + yen(r.max);
+    return r.max === 0 ? "0円（回収扱い）" : (r.min ? yen(r.min) : "0円") + " 〜 " + yen(r.max);
   }
-  if (!chosen) return form === "B" ? "量を選んでください" : "間取りを選んでください";
+  if (!chosen) return form === "B" ? "量を選んでください" : r.cleanup_kind === "souko" || r.cleanup_kind === "kusakari" ? "坪数を入れてください" : "間取りを選んでください";
   return r.undetermined ? "要相談" : fmtRange(r.min, r.max);
 }
 

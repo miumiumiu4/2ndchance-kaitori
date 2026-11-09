@@ -38,7 +38,7 @@ const { CONFIG: BASE_CONFIG } = await import(pathToFileURL(path.join(ROOT, "js/c
 const QC = await import(pathToFileURL(path.join(ROOT, "js/quote-core.js")).href);
 
 // 公開用の写しにだけ、環境変数（GitHub の Actions Variables）で値を差し込む
-const OVERRIDABLE = ["SITE_URL", "LINE_URL", "TEL", "GAS_URL", "HOURS", "OPENING_HOURS_SPEC", "OPENING_NOTE", "AIRCON_REF_PARAM", "AIRCON_REF_CODE"];
+const OVERRIDABLE = ["SITE_URL", "LINE_URL", "TEL", "GAS_URL", "HOURS", "OPENING_HOURS_SPEC", "OPENING_NOTE", "AIRCON_REF_PARAM", "AIRCON_REF_CODE", "MAIL_PERK_TEXT"];
 const CONFIG = { ...BASE_CONFIG };
 if (OUT) {
   for (const k of OVERRIDABLE) {
@@ -56,6 +56,15 @@ const FAQ = readJSON("data/faq.json");
 const RESULTS = readJSON("data/results.json");
 const POSTS = publishedPosts(loadPosts(POSTS_DIR, ROOT), TODAY);
 
+// 特典（prices.perks）の1文。JSON-LD・llms.txt の説明に使う
+function perksSentence() {
+  const pk = PRICES.perks || {};
+  const out = [];
+  if (pk.quo_card && pk.quo_card.desc) out.push(pk.quo_card.desc);
+  if (pk.same_day_up && pk.same_day_up.desc) out.push(pk.same_day_up.desc);
+  return out.join("");
+}
+
 // ページ表（設計書 4-1 の6ページ＋個人情報）
 const PAGES = [
   { file: "index.html", path: "", nav: "トップ", title: "出張買取・不用品回収・片付け", desc: "熊本県合志市のリサイクル店。冷蔵庫・洗濯機・家具の出張買取と、不用品回収・片付け・遺品整理。", form: "kaitori/#form-a", services: ["buyback", "collection", "cleanup"] },
@@ -68,9 +77,9 @@ const PAGES = [
 ];
 
 const SERVICES = {
-  buyback: { name: "出張買取（生活家電・家具）", type: "買取", desc: "冷蔵庫・洗濯機・電子レンジ・ガスコンロ・ソファ・ダイニングテーブル・食器棚・カーペット・カーテンなどを訪問して査定し、買い取ります。", page: "kaitori/" },
+  buyback: { name: "出張買取（生活家電・家具）", type: "買取", desc: "冷蔵庫・洗濯機・電子レンジ・ガスコンロ・ソファ・ダイニングテーブル・食器棚・カーペット・カーテンなどを訪問して査定し、買い取ります。家電の年式の目安は5年以内。" + perksSentence(), page: "kaitori/" },
   collection: { name: "不用品回収", type: "不用品回収", desc: "量の区分（少量〜トラック）で回収します。買い取れる物は費用から差し引きます。", page: "kataduke/" },
-  cleanup: { name: "片付け", type: "片付け", desc: "間取り別の目安で、分別・運び出し・処分・清掃までまとめて行います。", page: "kataduke/" },
+  cleanup: { name: "片付け", type: "片付け", desc: "種類（遺品整理・生前整理・ゴミ屋敷・空き家）ごとの間取り別の目安で、分別・運び出し・処分・清掃までまとめて行います。倉庫の片付け・草刈りは坪数で目安を出します。", page: "kataduke/" },
   ihin: { name: "遺品整理", type: "遺品整理", desc: "ご遺族と相談しながら、残す物・譲る物・手放す物を分けて片付けます。", page: "seiri/" },
   seizen: { name: "生前整理", type: "生前整理", desc: "住み替えや将来に備えて、ご本人と一緒に持ち物を整理します。", page: "seiri/" },
   gomiyashiki: { name: "ゴミ屋敷片付け", type: "片付け", desc: "物があふれた部屋を、近所に配慮しながら片付けます。", page: "seiri/" },
@@ -84,6 +93,10 @@ const isNum = (v) => typeof v === "number" && isFinite(v);
 const PENDING = '<span class="tag-pending">準備中</span>';
 const telHref = (t) => "tel:" + String(t).replace(/[^0-9+]/g, "");
 const pageUrl = (p) => (CONFIG.SITE_URL ? CONFIG.SITE_URL + p : null);
+function storeAddress() {
+  const a = CONFIG.STORE_ADDRESS || {};
+  return a.street ? (a.region || "") + (a.locality || "") + a.street : CONFIG.AREA_CENTER;
+}
 function centerParts() {
   const m = /^(.+?[都道府県])(.+)$/.exec(CONFIG.AREA_CENTER || "");
   return m ? { region: m[1], locality: m[2] } : { region: "", locality: CONFIG.AREA_CENTER || "" };
@@ -94,7 +107,8 @@ function header(page, rel) {
   const nav = PAGES.filter((p) => p.nav)
     .map((p) => `<li><a href="${rel}${p.path}"${p === page ? ' aria-current="page"' : ""}>${esc(p.nav)}</a></li>`)
     .join("");
-  const note = CONFIG.OPENING_NOTE ? `\n<div class="notice" role="note"><div class="wrap">${esc(CONFIG.OPENING_NOTE)}</div></div>` : "";
+  // お知らせ帯は LINE・電話がそろうまでだけ出す
+  const note = CONFIG.OPENING_NOTE && !(CONFIG.LINE_URL && CONFIG.TEL) ? `\n<div class="notice" role="note"><div class="wrap">${esc(CONFIG.OPENING_NOTE)}</div></div>` : "";
   return `<header class="site-header"><div class="wrap">
 <a class="brand" href="${rel}">${esc(CONFIG.SITE_NAME)}<small>買取・片付け｜${esc(CONFIG.AREA_CENTER)}</small></a>
 <nav class="gnav" aria-label="ページ一覧"><ul>${nav}</ul></nav>
@@ -127,7 +141,7 @@ ${lineBtn("btn-block")}
 ${telBtn("btn-block")}
 <a class="btn btn-form btn-block" href="${rel}kaitori/#form-a">買取の概算フォーム</a>
 </div>
-<p class="muted" style="margin-top:8px">LINEは写真を送ると目安をお伝えできます（主な窓口）。電話はタップで発信します。${CONFIG.HOURS ? "受付時間：" + esc(CONFIG.HOURS) : "受付時間：" + PENDING}</p>`;
+<p class="muted" style="margin-top:8px">LINEは写真を送ると目安をお伝えできます（主な窓口）。電話はタップで発信します。${CONFIG.HOURS ? "営業時間：" + esc(CONFIG.HOURS) : "営業時間：" + PENDING}</p>`;
 }
 
 function footer(page, rel) {
@@ -135,7 +149,7 @@ function footer(page, rel) {
   // 個人情報の取扱いへの入口はフォームの同意欄に残る。
   return `<footer class="site-footer"><div class="wrap">
 <p><a href="${rel}privacy/">個人情報の取扱い</a></p>
-<p>${esc(CONFIG.SITE_NAME)}（${esc(CONFIG.AREA_CENTER)}）｜受付時間：${CONFIG.HOURS ? esc(CONFIG.HOURS) : "準備中"}｜電話：${CONFIG.TEL ? esc(CONFIG.TEL) : "準備中"}</p>
+<p>${esc(CONFIG.SITE_NAME)}｜${esc(storeAddress())}｜営業時間：${CONFIG.HOURS ? esc(CONFIG.HOURS) : "準備中"}｜電話：${CONFIG.TEL ? esc(CONFIG.TEL) : "準備中"}</p>
 <p class="muted">表示している金額は目安です。最終額は訪問査定で確定します。金・貴金属の買取は準備中です。</p>
 </div></footer>`;
 }
@@ -153,18 +167,41 @@ const minPrice = (list, key) => {
 };
 function priceSummary(page, rel) {
   const fromText = (v) => (isNum(v) ? yen(v) + "〜" : '<span class="consult">要相談</span>');
-  const firstLayout = (PRICES.cleanup_by_layout || []).filter((r) => isNum(r.price_from)).sort((a, b) => a.price_from - b.price_from)[0];
+  const firstLayout = allLayoutRows().filter((r) => isNum(r.price_from)).sort((a, b) => a.price_from - b.price_from)[0];
   const maxBuy = (PRICES.buyback_items || []).filter((b) => isNum(b.max_price)).sort((a, b) => b.max_price - a.max_price)[0];
   return `${provisionalBand()}<ul class="price-summary">
 <li><span>不用品回収（量の区分）</span><b>${fromText(minPrice(PRICES.collection_tiers, "price_from"))}</b></li>
-<li><span>片付け（間取り別${firstLayout ? "・" + esc(firstLayout.layout) + "の場合" : ""}）</span><b>${fromText(firstLayout ? firstLayout.price_from : null)}</b></li>
+<li><span>片付け（間取り別${firstLayout ? "・" + esc(QC.CLEANUP_KINDS[firstLayout.kind]) + " " + esc(firstLayout.layout) + "の場合" : ""}）</span><b>${fromText(firstLayout ? firstLayout.price_from : null)}</b></li>
 <li><span>買取の上限目安（例：${maxBuy ? esc(maxBuy.name) : "冷蔵庫"}）</span><b>${maxBuy ? "最大 " + yen(maxBuy.max_price) : '<span class="consult">要相談</span>'}</b></li>
 </ul>
+${perksBox()}
 <p class="callout">金額はすべて目安です。最終額は訪問査定で確定します。</p>`;
+}
+// 種類ごとの間取り表をひとつの並びに（kind を付ける）
+const LAYOUT_KINDS = () => Object.keys(PRICES.cleanup_by_kind || {});
+function allLayoutRows() {
+  return LAYOUT_KINDS().flatMap((k) => (PRICES.cleanup_by_kind[k] || []).map((r) => ({ ...r, kind: k })));
+}
+// 特典の箱（料金ページ・トップ・買取ページ）
+function perksBox() {
+  const pk = PRICES.perks || {};
+  const li = [];
+  if (pk.quo_card) li.push(`<li><b>${esc(pk.quo_card.name)}</b><br>${esc(pk.quo_card.desc)}</li>`);
+  if (pk.same_day_up) li.push(`<li><b>${esc(pk.same_day_up.name)}</b><br>${esc(pk.same_day_up.desc)}</li>`);
+  return li.length ? `<div class="perks"><p class="perks-h">買取の特典</p><ul class="check">${li.join("")}</ul></div>` : "";
 }
 const buybackDef = (id) => (PRICES.buyback_items || []).find((b) => b.id === id) || {};
 const yearText = (d) => (isNum(d.year_limit) ? `製造からおおむね${d.year_limit}年以内` : "年式の目安は確認中");
 const maxText = (d) => (isNum(d.max_price) ? `最大 ${yen(d.max_price)}` : '<span class="consult">要相談</span>');
+const rangeText = (d) => (isNum(d.max_price) ? (isNum(d.min_price) ? `${yen(d.min_price)}〜${yen(d.max_price)}` : `最大 ${yen(d.max_price)}`) : '<span class="consult">要相談</span>');
+const fromYen = (v) => (isNum(v) ? yen(v) + "〜" : '<span class="consult">要相談</span>');
+const optText = (o) => {
+  if (!isNum(o.price)) return '<span class="consult">要相談</span>';
+  const base = o.price === 0 ? "無料" : yen(o.price) + "／" + esc(o.unit);
+  const c = o.price_by_form && Object.prototype.hasOwnProperty.call(o.price_by_form, "C") ? o.price_by_form.C : undefined;
+  if (c === undefined || c === o.price) return base;
+  return `不用品回収 ${base}／片付け ${isNum(c) ? (c === 0 ? "無料" : yen(c) + "／" + esc(o.unit)) : "要相談"}`;
+};
 
 function itemsTiles(page, rel) {
   return `<ul class="grid-items" style="list-style:none;padding:0;margin:0">${ITEMS.items
@@ -178,7 +215,7 @@ function itemsDetail(page, rel) {
       const d = buybackDef(it.id);
       return `<li class="card item-card"><img src="${rel}assets/icons/${esc(it.icon)}" alt="" width="64" height="64"><div>
 <h3>${esc(it.name)}</h3>
-<p style="margin:0"><b>${esc(it.accept)}</b>｜${maxText(d)}｜${esc(yearText(d))}</p>
+<p style="margin:0"><b>${esc(it.accept)}</b>｜${rangeText(d)}｜${esc(yearText(d))}</p>
 <dl><dt>見るところ</dt><dd>${it.check.map(esc).join("、")}</dd><dt>減額になりやすいこと</dt><dd>${it.reduce.map(esc).join("、")}</dd></dl>
 </div></li>`;
     })
@@ -208,30 +245,50 @@ function faqList() {
 
 function priceTables(page, rel) {
   const tiers = PRICES.collection_tiers
-    .map((t) => `<tr><td><img src="${rel}assets/icons/truck-${esc(t.id)}.svg" alt="" width="40" height="40" style="vertical-align:middle;margin-right:6px">${esc(QC.tierName(t))}<br><small class="muted">${esc(t.note || "")}</small></td><td class="num">${isNum(t.price_from) ? yen(t.price_from) + "〜" : '<span class="consult">要相談</span>'}</td></tr>`)
+    .map((t) => `<tr><td><img src="${rel}assets/icons/truck-${esc(t.id)}.svg" alt="" width="40" height="40" style="vertical-align:middle;margin-right:6px">${esc(QC.tierName(t))}<br><small class="muted">${esc(t.note || "")}</small></td><td class="num">${fromYen(t.price_from)}</td></tr>`)
     .join("");
-  const layouts = PRICES.cleanup_by_layout
-    .map((r) => `<tr><td>${esc(r.layout)}</td><td>${esc(QC.hoursText(r.hours) || "確認中")}</td><td class="num">${isNum(r.price_from) ? yen(r.price_from) + "〜" : '<span class="consult">要相談</span>'}</td></tr>`)
+  const kinds = LAYOUT_KINDS();
+  const first = PRICES.cleanup_by_kind[kinds[0]] || [];
+  const layouts = first
+    .map((r0) => `<tr><td>${esc(r0.layout)}<br><small class="muted">${esc(QC.hoursText(r0.hours) || "確認中")}</small></td>${kinds
+      .map((k) => { const r = (PRICES.cleanup_by_kind[k] || []).find((x) => x.layout === r0.layout) || {}; return `<td class="num">${fromYen(r.price_from)}</td>`; })
+      .join("")}</tr>`)
+    .join("");
+  const others = (PRICES.other_cleanup || [])
+    .map((o) => `<tr><td>${esc(o.name)}</td><td class="num">${isNum(o.price_from) ? esc(o.per_tsubo + "坪あたり ") + yen(o.price_from) + "〜" : '<span class="consult">要相談</span>'}</td></tr>`)
     .join("");
   const items = PRICES.buyback_items
-    .map((b) => `<tr><td>${esc(b.name)}</td><td>${esc(yearText(b))}</td><td class="num">${maxText(b)}</td></tr>`)
+    .map((b) => `<tr><td>${esc(b.name)}</td><td>${esc(yearText(b))}</td><td class="num">${rangeText(b)}</td></tr>`)
     .join("");
   const options = PRICES.options
-    .map((o) => `<tr><td>${esc(o.name)}</td><td class="num">${isNum(o.price) ? yen(o.price) + "／" + esc(o.unit) : '<span class="consult">要相談</span>'}</td></tr>`)
+    .map((o) => `<tr><td>${esc(o.name)}</td><td class="num">${optText(o)}</td></tr>`)
+    .join("");
+  const delivery = (PRICES.delivery_tiers || [])
+    .map((d) => `<tr><td>${esc(d.label)}</td><td class="num">${isNum(d.fee) ? (d.fee === 0 ? "無料" : yen(d.fee)) : '<span class="consult">要相談</span>'}</td></tr>`)
     .join("");
   const inc = PRICES.cleanup_includes.map((s) => `<li>${esc(s)}</li>`).join("");
   return `${provisionalBand()}<p class="callout"><b>${esc(PRICES.disclaimer)}</b><br>価格表の更新日：${PRICES.updated ? esc(PRICES.updated) + (PRICES.provisional ? "（仮の金額）" : "") : "未定（金額は共同代表の確認待ち）"}／税：${PRICES.tax === "included" ? "税込" : esc(PRICES.tax)}</p>
 <h3 id="collection">不用品回収（量の区分）</h3>
 <div class="table-wrap"><table class="price"><thead><tr><th scope="col">区分</th><th scope="col">料金の目安</th></tr></thead><tbody>${tiers}</tbody></table></div>
-<h3 id="cleanup" style="margin-top:18px">片付け（間取り別）</h3>
-<div class="table-wrap"><table class="price"><thead><tr><th scope="col">間取り</th><th scope="col">作業時間</th><th scope="col">料金の目安</th></tr></thead><tbody>${layouts}</tbody></table></div>
+<h3 id="cleanup" style="margin-top:18px">片付け（種類・間取り別）</h3>
+<div class="table-wrap"><table class="price price-kinds"><thead><tr><th scope="col">間取り<br><small>作業時間</small></th>${kinds.map((k) => `<th scope="col">${esc(QC.CLEANUP_KINDS[k])}</th>`).join("")}</tr></thead><tbody>${layouts}</tbody></table></div>
+<p class="muted">「要相談」は金額を確認中です（生前整理は 1R・1K だけ決まっています）。表が横に長いときは横にずらして見られます。</p>
 <p style="margin-top:10px"><b>料金に含まれるもの</b></p>
 <ul class="check">${inc}</ul>
+<h3 id="other-cleanup" style="margin-top:18px">その他の片付け（坪数）</h3>
+<div class="table-wrap"><table class="price"><thead><tr><th scope="col">内容</th><th scope="col">料金の目安</th></tr></thead><tbody>${others}</tbody></table></div>
+<p class="muted">坪数は10坪単位で切り上げて計算します（例：25坪 → 30坪分）。</p>
 <h3 id="options">オプション</h3>
 <div class="table-wrap"><table class="price"><thead><tr><th scope="col">内容</th><th scope="col">料金</th></tr></thead><tbody>${options}</tbody></table></div>
-<h3 id="buyback" style="margin-top:18px">買取の上限目安</h3>
-<div class="table-wrap"><table class="price"><thead><tr><th scope="col">品目</th><th scope="col">年式の目安</th><th scope="col">上限の目安</th></tr></thead><tbody>${items}</tbody></table></div>
-<p class="muted">状態による目安${PRICES.provisional ? "（仮）" : ""}：良い＝${Math.round((PRICES.condition_factor.good || 0) * 100)}%／普通＝${Math.round((PRICES.condition_factor.normal || 0) * 100)}%／難あり＝${Math.round((PRICES.condition_factor.damaged || 0) * 100)}%（上限に対して。確認中）。年式の目安を超えた家電は回収扱いです。</p>`;
+<p class="muted">大きな家具の2階からの運び出しは無料です。供養（お焚き上げ等）・ハウスクリーニング（提携先・準備中）・不動産のご相談は、担当者から別途ご案内します。</p>
+<h3 id="buyback" style="margin-top:18px">買取の目安</h3>
+<div class="table-wrap"><table class="price"><thead><tr><th scope="col">品目</th><th scope="col">年式の目安</th><th scope="col">買取の目安</th></tr></thead><tbody>${items}</tbody></table></div>
+<p class="muted">状態による目安${PRICES.provisional ? "（仮）" : ""}：良い＝${Math.round((PRICES.condition_factor.good || 0) * 100)}%／普通＝${Math.round((PRICES.condition_factor.normal || 0) * 100)}%／難あり＝${Math.round((PRICES.condition_factor.damaged || 0) * 100)}%（上限に対して。確認中）。他で値段がつかない物でも、年式の目安以内なら左の最低額はお付けします。年式の目安を超えた家電は回収扱いです。</p>
+<h3 id="perks" style="margin-top:18px">買取の特典</h3>
+${perksBox()}
+<h3 id="delivery" style="margin-top:18px">購入商品の配送料（店からの距離）</h3>
+<div class="table-wrap"><table class="price"><thead><tr><th scope="col">店からの距離</th><th scope="col">配送料</th></tr></thead><tbody>${delivery}</tbody></table></div>
+<p class="muted">距離は道のりの目安です。送料無料の商品は50km以内なら無料です。販売ページの注文フォームで郵便番号を入れると目安が出ます（準備中）。</p>`;
 }
 
 function resultsCards(page, rel, limit) {
@@ -255,7 +312,8 @@ function business() {
     "@id": (CONFIG.SITE_URL || "") + "#business",
     name: CONFIG.SITE_NAME,
     description: "生活家電・家具の出張買取と、不用品回収・片付け・遺品整理のリサイクル店。",
-    address: { "@type": "PostalAddress", addressRegion: c.region, addressLocality: c.locality, addressCountry: "JP" },
+    address: { "@type": "PostalAddress", addressRegion: (CONFIG.STORE_ADDRESS && CONFIG.STORE_ADDRESS.region) || c.region, addressLocality: (CONFIG.STORE_ADDRESS && CONFIG.STORE_ADDRESS.locality) || c.locality, ...(CONFIG.STORE_ADDRESS && CONFIG.STORE_ADDRESS.street ? { streetAddress: CONFIG.STORE_ADDRESS.street } : {}), addressCountry: "JP" },
+    ...(CONFIG.STORE_LATLNG ? { geo: { "@type": "GeoCoordinates", latitude: CONFIG.STORE_LATLNG[0], longitude: CONFIG.STORE_LATLNG[1] } } : {}),
     areaServed: AREAS.areas.map((a) => ({ "@type": "City", name: a.pref + a.name }))
   };
   if (CONFIG.SITE_URL) o.url = CONFIG.SITE_URL;
@@ -291,11 +349,13 @@ function catalog() {
   return {
     "@type": "OfferCatalog",
     name: "料金目安（目安。最終額は訪問査定で確定）",
-    ...(PRICES.provisional ? { description: PROVISIONAL_LD() } : {}),
+    description: [PROVISIONAL_LD(), perksSentence()].filter(Boolean).join(" "),
     itemListElement: [
       { "@type": "OfferCatalog", name: "不用品回収", itemListElement: PRICES.collection_tiers.map((t) => offer("不用品回収 " + QC.tierName(t), t.price_from, null, t.note)) },
-      { "@type": "OfferCatalog", name: "片付け（間取り別）", itemListElement: PRICES.cleanup_by_layout.map((r) => offer("片付け " + r.layout, r.price_from, null, QC.hoursText(r.hours) ? "作業時間の目安 " + QC.hoursText(r.hours) : null)) },
-      { "@type": "OfferCatalog", name: "オプション", itemListElement: PRICES.options.map((o) => offer(o.name, o.price, o.unit)) }
+      ...LAYOUT_KINDS().map((k) => ({ "@type": "OfferCatalog", name: QC.CLEANUP_KINDS[k] + "（間取り別）", itemListElement: PRICES.cleanup_by_kind[k].map((r) => offer(QC.CLEANUP_KINDS[k] + " " + r.layout, r.price_from, null, QC.hoursText(r.hours) ? "作業時間の目安 " + QC.hoursText(r.hours) : null)) })),
+      { "@type": "OfferCatalog", name: "その他の片付け（坪数）", itemListElement: (PRICES.other_cleanup || []).map((o) => offer(o.name, o.price_from, o.per_tsubo + "坪あたり", o.note)) },
+      { "@type": "OfferCatalog", name: "オプション", itemListElement: PRICES.options.map((o) => offer(o.name, o.price, o.unit, o.note)) },
+      { "@type": "OfferCatalog", name: "購入商品の配送料", itemListElement: (PRICES.delivery_tiers || []).map((d) => offer("配送 " + d.label, d.fee, null)) }
     ]
   };
 }
@@ -326,6 +386,7 @@ const FRAGMENTS = {
   faq: () => faqList(),
   prices: (p, rel) => priceTables(p, rel),
   "price-summary": (p, rel) => priceSummary(p, rel),
+  perks: () => provisionalBand() + perksBox(),
   results: (p, rel) => resultsCards(p, rel),
   "results-top": (p, rel) => resultsCards(p, rel, 3),
   hours: () => (CONFIG.HOURS ? esc(CONFIG.HOURS) : PENDING),
@@ -367,7 +428,9 @@ function llms() {
   const pages = PAGES.map((p) => `- [${p.title}](${u(p.path)}): ${p.desc}`).join("\n");
   const items = PRICES.buyback_items.map((b) => `${b.id}（${b.name}）`).join("、");
   const tiers = PRICES.collection_tiers.map((t) => `${t.id}（${QC.tierName(t)}・${t.note}）`).join("、");
-  const layouts = PRICES.cleanup_by_layout.map((r) => r.layout).join("、");
+  const layouts = (PRICES.cleanup_by_kind[LAYOUT_KINDS()[0]] || []).map((r) => r.layout).join("、");
+  const others = (PRICES.other_cleanup || []).map((o) => `${o.id}（${o.name}・${o.per_tsubo}坪あたり ${isNum(o.price_from) ? o.price_from + "円〜" : "要相談"}）`).join("、");
+  const deliv = (PRICES.delivery_tiers || []).map((d) => `${d.label}：${isNum(d.fee) ? (d.fee === 0 ? "無料" : d.fee + "円") : "要相談"}`).join("／");
   const opts = PRICES.options.map((o) => `${o.id}（${o.name}）`).concat(Object.entries(QC.CONSULT_OPTIONS).map(([k, v]) => `${k}（${v}・相談のみ）`)).join("、");
   const kinds = Object.entries(QC.CLEANUP_KINDS).map(([k, v]) => `${k}（${v}）`).join("、");
   const api = CONFIG.GAS_URL || "（準備中：URL は公開後に入ります）";
@@ -386,7 +449,7 @@ ${PRICES.provisional ? `## 金額は${PROVISIONAL_LABEL}
 ${pages}
 
 ## 機械可読データ（個人情報は含まない）
-- [料金目安](${u("data/prices.json")}): 不用品回収の量の区分・片付けの間取り別・オプション・買取の上限目安と年式の目安・状態係数。null は「要相談」。provisional: true のあいだは仮の金額。
+- [料金目安](${u("data/prices.json")}): 不用品回収の量の区分・片付けの種類ごとの間取り別（cleanup_by_kind）・倉庫と草刈り（other_cleanup）・オプション・買取の最低額と上限目安と年式の目安・状態係数・特典（perks）・配送料（delivery_tiers）。null は「要相談」。provisional: true のあいだは仮の金額。
 - [取扱品目](${u("data/items.json")}): 買取の可否、見るところ、減額になりやすいこと、買取できない物の例。
 - [出張エリア](${u("data/areas.json")}): 市町村名と要確認フラグ、出張費・査定料。
 - [よくある質問](${u("data/faq.json")})
@@ -403,13 +466,19 @@ ${LIVE_CLOSE}
   - 年式係数：目安年数以内＝1.0、超えている＝0（買取見込み 0円・回収扱い）。年式不明は 1.0 で計算し訪問時に確認。
   - 下限は 0円（査定で買い取れない場合があるため）。上限目安が null の品目があれば「要相談」。
 - 不用品回収（フォームB）：お会計 ＝ 回収費用（区分の price_from ＋ オプション）− 買取見込み。幅（最小〜最大）で返す。マイナスはお客様の受け取り。
-- 片付け（フォームC）：お会計 ＝ 間取りの基本料 price_from ＋ オプション − 買取見込み。作業時間の目安 hours つき。
+- 片付け（フォームC）：お会計 ＝ 種類ごとの間取り表 cleanup_by_kind[kind] の基本料 price_from ＋ オプション − 買取見込み。作業時間の目安 hours つき。生前整理は 1R・1K 以外が null（要相談）。
+- 倉庫の片付け・草刈り（kind=souko・kusakari）：other_cleanup の「10坪あたり price_from」× 坪数 tsubo（10坪単位で切り上げ）。
+- オプションの料金は price（price_by_form にフォーム別の値があればそちら。解体は片付け C では 0 円）。階段での運び出しは 0 円（無料）。
+- 買取の1台あたりは最低額 min_price を下回らない（年式の目安以内のとき。下限 min はその合計）。家電の年式の目安は5年以内。
+- 同日査定（same_day=1。エアコンクリーニング・ハウスクリーニングと同じ日）：買取見込みを perks.same_day_up.rate（20%）上乗せ。
+- 特典：${perksSentence()}
 - 価格表のどこかが null なら undetermined: true（要相談）。
 - 作業時間の目安 hours は「1〜2時間」のような文字列（または数値）。
 - 品目 id：${items}
 - 量の区分 tier：${tiers}
 - 間取り layout：${layouts}
 - 片付けの種別 kind：${kinds}
+- 坪数で出す片付け：${others}
 - オプション options：${opts}
 
 ## 概算 API（読み取り専用）
@@ -418,6 +487,7 @@ ${LIVE_CLOSE}
   - items は「品目id:台数:年式(within|over|unknown):状態(good|normal|damaged)」をカンマ区切り。
   - \`?action=quote&form=B&tier=mini&options=stairs:1&items=sofa:1:within:normal\`
   - \`?action=quote&form=C&layout=2DK・2LDK&kind=ihin&options=kuyou\`
+  - \`?action=quote&form=C&kind=souko&tsubo=25\`　\`?action=quote&form=A&items=fridge:1:within:good&same_day=1\`
 - 価格表：\`?action=prices\`
 - 返り値は JSON（min・max・undetermined・provisional・lines・offset_note）。
 
@@ -425,7 +495,9 @@ ${LIVE_CLOSE}
 - 価格はすべて目安${PRICES.provisional ? "（現在は仮の金額）" : ""}。最終額は訪問査定で人が決める。AI がお客様に金額を約束しないこと。
 - 買取では古物営業法の本人確認が必要。本人確認は訪問時に人が行う（運転免許証・マイナンバーカード等）。
 - 予約は、フォームまたは LINE・電話の受付のあと、電話の折返しで日時を相談して確定する。フォーム送信だけでは確定しない。
-- お金の受け取り方（その場で現金／高額時は振込）は方針確認中。
+- 買取代金の受け取りは現金が基本、高額の場合は銀行振込。お客様が支払う費用（回収・片付け・配送・商品代）は現金・クレジットカード・PayPay。
+- 出張費・査定料は店から30km圏内は無料。
+- 購入商品の配送料（店からの道のりの目安）：${deliv}。送料無料の商品は50km以内なら無料。
 - 予約の書き込み API は段階2（未提供）。
 `;
 }

@@ -71,7 +71,7 @@ try {
 
   // 仮の金額のときは帯が出る
   const PRICES = JSON.parse(fs.readFileSync(path.join(ROOT, "data/prices.json"), "utf8"));
-  // フォームA：冷蔵庫2台 → 0円〜¥18,000（年式わからない・普通）
+  // フォームA：冷蔵庫2台 → 0円〜¥24,000（年式わからない・普通）
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP" });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(e.message));
@@ -82,7 +82,7 @@ try {
   const qty = await page.textContent('[data-out="item:fridge"]');
   const estA = await page.textContent("#q-est [data-est-value]");
   check("フォームA：冷蔵庫2台", qty === "2", qty);
-  check("フォームA：概算が金額の幅（0円 〜 ¥18,000）", estA.trim() === "0円 〜 ¥18,000", estA);
+  check("フォームA：概算が金額の幅（0円 〜 ¥24,000）", estA.trim() === "0円 〜 ¥24,000", estA);
   if (PRICES.provisional) check("フォームA：概算の上に「仮の目安（調整中）」の帯", (await page.textContent("#q-est .provisional-band")).includes("仮の目安（調整中）"));
   check("フォームA：金額の真横に目安の注記", (await page.textContent("#q-est .est-note")).includes("最終額は訪問査定で確定"));
   check("フォームA：年式・状態の選択が出る", await page.isVisible("#y-fridge"));
@@ -105,11 +105,11 @@ try {
   await page.waitForSelector("#q-confirm:not([hidden])");
   const confirmText = await page.textContent("#q-confirm");
   check("確認画面：カナに自動変換", confirmText.includes("ヤマダ ハナコ"));
-  check("確認画面：概算が残る", confirmText.includes("¥18,000"));
+  check("確認画面：概算が残る", confirmText.includes("¥24,000"));
   const sendBtn = page.locator("#q-confirm button.btn-form");
   check("送信ボタン：GAS_URL 空なら「準備中」で押せない", (await sendBtn.isDisabled()) && (await sendBtn.textContent()).includes("準備中"));
   await page.screenshot({ path: path.join(ROOT, "screens", "form-a-confirm-390.png"), fullPage: false });
-  check("確認画面：固定バーの概算パネルに金額が残る", (await page.isVisible("#cta-est")) && (await page.textContent("#cta-est")).includes("¥18,000"));
+  check("確認画面：固定バーの概算パネルに金額が残る", (await page.isVisible("#cta-est")) && (await page.textContent("#cta-est")).includes("¥24,000"));
   await page.click('[data-act="back"]');
   check("戻ると入力が残る", (await page.inputValue("#f-name")) === "ヤマダ ハナコ" && (await page.textContent('[data-out="item:fridge"]')) === "2");
 
@@ -129,7 +129,16 @@ try {
   check("タブ：片付けに切り替わる（間取り6つ）", cSel === "true" && layouts === 6, `selected=${cSel} layouts=${layouts}`);
   await page.click('label.choice:has(input[value="2DK・2LDK"])');
   const estC = await page.textContent("#q-est [data-est-value]");
-  check("フォームC：2LDK を選ぶと ¥50,000", estC.trim() === "¥50,000", estC);
+  check("フォームC：遺品整理 2LDK を選ぶと ¥90,000", estC.trim() === "¥90,000", estC);
+  await page.click('label.choice:has(input[name=kind][value="gomiyashiki"])');
+  const estG = await page.textContent("#q-est [data-est-value]");
+  check("フォームC：種類をゴミ屋敷に変えると同じ間取りで ¥50,000", estG.trim() === "¥50,000", estG);
+  await page.click('label.choice:has(input[name=kind][value="souko"])');
+  check("フォームC：倉庫は坪数の入力", await page.isVisible("#f-tsubo"));
+  await page.fill("#f-tsubo", "25");
+  const estS = await page.textContent("#q-est [data-est-value]");
+  check("フォームC：倉庫 25坪 → ¥150,000", estS.trim() === "¥150,000", estS);
+  await page.click('label.choice:has(input[name=kind][value="ihin"])');
   check("フォームC：作業時間の目安", (await page.textContent("#q-est")).includes("3〜5時間"));
   check("フォームC：相殺の注記が金額の真横", (await page.textContent("#q-est .est-note")).includes("お会計も変わります"));
   await page.keyboard.press("Shift+Tab");
@@ -140,7 +149,11 @@ try {
   await page.click("details.card summary");
   await page.click('[data-step="item:fridge"][data-d="1"]');
   const estB = await page.textContent("#q-est [data-est-value]");
-  check("フォームB：軽トラ＋冷蔵庫1台で ¥9,000 〜 ¥18,000", estB.trim() === "¥9,000 〜 ¥18,000", estB);
+  check("フォームB：軽トラ＋冷蔵庫1台で ¥0 〜 ¥12,000", estB.trim() === "¥0 〜 ¥12,000", estB);
+  await page.check("[data-same-day]");
+  const estB2 = await page.textContent("#q-est [data-est-value]");
+  check("フォームB：同日査定にチェックで買取見込み +20%（お受け取り ¥2,400 〜 ¥12,000）", estB2.trim() === "お受け取り ¥2,400 〜 ¥12,000", estB2);
+  await page.uncheck("[data-same-day]");
   await page.locator("#q-est").screenshot({ path: path.join(ROOT, "screens", "form-b-estimate-390.png") });
   await page.locator(".tabs").screenshot({ path: path.join(ROOT, "screens", "form-bc-tabs-390.png") });
 
@@ -198,8 +211,8 @@ try {
     await pg.click('[data-step="item:fridge"][data-d="1"]');
   };
   for (const [w, h] of [[390, 844], [1280, 900]]) {
-    await stickyRun(w, h, "kaitori/", fridgeA, w === 390 ? "form-a-sticky-390.png" : "", "フォームA（冷蔵庫1台）", "0円 〜 ¥9,000");
-    await stickyRun(w, h, "kataduke/", fridgeB, w === 390 ? "form-b-sticky-390.png" : "", "フォームB（軽トラ＋冷蔵庫1台）", "¥9,000 〜 ¥18,000");
+    await stickyRun(w, h, "kaitori/", fridgeA, w === 390 ? "form-a-sticky-390.png" : "", "フォームA（冷蔵庫1台）", "0円 〜 ¥12,000");
+    await stickyRun(w, h, "kataduke/", fridgeB, w === 390 ? "form-b-sticky-390.png" : "", "フォームB（軽トラ＋冷蔵庫1台）", "¥0 〜 ¥12,000");
   }
 
   check("コンソールエラーなし", errors.length === 0, errors.join(" | "));

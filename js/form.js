@@ -8,11 +8,13 @@ const FORM_NAMES = { A: "出張買取", B: "不用品回収", C: "片付け（�
 const YEAR_LABELS = { within: "目安年数以内", over: "目安年数を超えている", unknown: "わからない" };
 const COND_LABELS = { good: "良い（きれい・不具合なし）", normal: "普通（使用感あり）", damaged: "難あり（傷・汚れ・不具合）" };
 const TIME_SLOTS = ["午前（9時〜12時）", "午後（12時〜15時）", "夕方（15時〜18時）", "時間はいつでもよい"];
+// お客様が支払う場合（回収・片付けの費用）。Airペイで受けます
 const PAYMENTS = [
   { id: "cash", label: "現金" },
-  { id: "paypay", label: "PayPay" },
-  { id: "invoice", label: "請求リンク（後日 LINE かメールでお送りします）" }
+  { id: "card", label: "クレジットカード" },
+  { id: "paypay", label: "PayPay" }
 ];
+const TSUBO_KINDS = ["souko", "kusakari"];
 const OPTIONS_FOR = {
   B: { priced: ["stairs", "dismantle", "aircon_removal"], consult: ["sorting"] },
   C: { priced: ["stairs", "dismantle", "aircon_removal"], consult: ["kuyou", "house_cleaning", "fudosan"] }
@@ -55,8 +57,10 @@ async function init(root) {
     form: forms.includes("C") && location.hash === "#form-c" ? "C" : forms[0],
     items: {},
     tier: "",
-    layout: "",
+    layout: params.get("layout") || "",
     kind: Object.prototype.hasOwnProperty.call(Q.CLEANUP_KINDS, params.get("kind")) ? params.get("kind") : "ihin",
+    tsubo: "",
+    sameDay: false,
     options: {}
   };
   (prices.buyback_items || []).forEach((b) => { st.items[b.id] = { qty: 0, year: "unknown", condition: "normal" }; });
@@ -70,7 +74,12 @@ async function init(root) {
       input.options = Object.keys(st.options).filter((id) => st.options[id] > 0 && (allow.priced.includes(id) || allow.consult.includes(id))).map((id) => ({ id, qty: st.options[id] }));
     }
     if (st.form === "B") input.tier = st.tier || null;
-    if (st.form === "C") { input.layout = st.layout || null; input.kind = st.kind; }
+    if (st.form === "C") {
+      input.kind = st.kind;
+      if (TSUBO_KINDS.includes(st.kind)) input.tsubo = Number(st.tsubo) || null;
+      else input.layout = st.layout || null;
+    }
+    if (st.form !== "C" && st.sameDay) input.same_day = true;
     return input;
   }
   const calc = () => Q.quoteFromInput(currentInput(), prices);
@@ -83,7 +92,7 @@ async function init(root) {
     return (prices.buyback_items || []).map((b) => {
       const s = st.items[b.id];
       const sub = isNum(b.year_limit) ? `製造からおおむね${b.year_limit}年以内が目安` : "年式の目安は確認中";
-      const price = isNum(b.max_price) ? `最大 ¥${b.max_price.toLocaleString("ja-JP")}` : "要相談";
+      const price = isNum(b.max_price) ? (isNum(b.min_price) ? `¥${b.min_price.toLocaleString("ja-JP")}〜` : "最大 ") + `¥${b.max_price.toLocaleString("ja-JP")}` : "要相談";
       const yearOpts = Object.keys(YEAR_LABELS).map((k) => `<option value="${k}"${s.year === k ? " selected" : ""}>${YEAR_LABELS[k]}</option>`).join("");
       const condOpts = Object.keys(COND_LABELS).map((k) => `<option value="${k}"${s.condition === k ? " selected" : ""}>${COND_LABELS[k]}</option>`).join("");
       return `<div class="qrow" data-item="${b.id}">
@@ -100,7 +109,8 @@ async function init(root) {
       const d = optDef(id);
       if (!d) return "";
       const q = st.options[id] || 0;
-      return `<div class="qrow"><div class="qrow-head" style="grid-template-columns:1fr auto"><div><b>${esc(d.name)}</b><span>${isNum(d.price) ? "¥" + d.price.toLocaleString("ja-JP") + "／" + esc(d.unit) : "要相談"}</span></div>${stepper("opt:" + id, d.name, q)}</div></div>`;
+      const pr = Q.optionPrice(d, form);
+      return `<div class="qrow"><div class="qrow-head" style="grid-template-columns:1fr auto"><div><b>${esc(d.name)}</b><span>${isNum(pr) ? (pr === 0 ? "無料" : "¥" + pr.toLocaleString("ja-JP") + "／" + esc(d.unit)) : "要相談"}</span></div>${stepper("opt:" + id, d.name, q)}</div></div>`;
     }).join("");
     const consult = allow.consult.map((id) => `<label class="choice"><input type="checkbox" data-consult="${id}"${st.options[id] ? " checked" : ""}><div><b>${esc(Q.CONSULT_OPTIONS[id])}</b><span>料金は担当者から別途ご案内</span></div></label>`).join("");
     return `<fieldset><legend>オプション（任意）</legend>${priced}<div class="choices" style="margin-top:10px">${consult}</div></fieldset>`;
@@ -110,20 +120,39 @@ async function init(root) {
     return `<details class="card"${any ? " open" : ""} style="margin-bottom:18px"><summary style="cursor:pointer;font-weight:900">買い取れそうな物もあれば選ぶ（任意）</summary>
 <p class="hint">選んだ物の買取見込み額を、費用から差し引いて表示します。</p>${itemRows()}</details>`;
   }
+  // 同日査定（エアコン・ハウスクリーニングと同じ日）で買取見込み +20%（既定オフ）
+  function sameDayBlock() {
+    const pk = prices.perks && prices.perks.same_day_up;
+    if (!pk || !isNum(pk.rate)) return "";
+    return `<label class="choice" style="margin-bottom:18px"><input type="checkbox" data-same-day${st.sameDay ? " checked" : ""}><div><b>エアコン・ハウスクリーニングと同じ日に査定する（買取額 +${Math.round(pk.rate * 100)}%）</b><span>${esc(pk.desc)}</span></div></label>`;
+  }
   function panelHTML() {
     if (st.form === "A") {
-      return `<fieldset><legend>1. 売りたい物を選ぶ</legend><p class="hint">台数を「＋」で増やすと、年式と状態を選べます。製造年は本体のシールで確認できます。</p>${itemRows()}</fieldset>`;
+      return `<fieldset><legend>1. 売りたい物を選ぶ</legend><p class="hint">台数を「＋」で増やすと、年式と状態を選べます。製造年は本体のシールで確認できます。家電は5年以内（2020年以降）が買取の目安です。</p>${itemRows()}</fieldset>${sameDayBlock()}`;
     }
     if (st.form === "B") {
       const tiers = (prices.collection_tiers || []).map((t) => `<label class="choice"><input type="radio" name="tier" value="${t.id}"${st.tier === t.id ? " checked" : ""}><img src="${base}assets/icons/truck-${esc(t.id)}.svg" alt="" width="44" height="44"><div><b>${esc(Q.tierName(t))}</b><span>${esc(t.note || "")}｜${isNum(t.price_from) ? "¥" + t.price_from.toLocaleString("ja-JP") + "〜" : "要相談"}</span></div></label>`).join("");
-      return `<fieldset><legend>1. 回収する量を選ぶ <span class="req">必須</span></legend><div class="choices" data-group="tier">${tiers}</div></fieldset>${optionRows("B")}${buybackBlock()}`;
+      return `<fieldset><legend>1. 回収する量を選ぶ <span class="req">必須</span></legend><div class="choices" data-group="tier">${tiers}</div></fieldset>${optionRows("B")}${buybackBlock()}${sameDayBlock()}`;
     }
     const kinds = Object.keys(Q.CLEANUP_KINDS).map((k) => `<label class="choice"><input type="radio" name="kind" value="${k}"${st.kind === k ? " checked" : ""}><div><b>${esc(Q.CLEANUP_KINDS[k])}</b></div></label>`).join("");
-    const layouts = (prices.cleanup_by_layout || []).map((r) => `<label class="choice"><input type="radio" name="layout" value="${esc(r.layout)}"${st.layout === r.layout ? " checked" : ""}><div><b>${esc(r.layout)}</b><span>${Q.hoursText(r.hours) ? "作業 " + esc(Q.hoursText(r.hours)) : "作業時間は確認中"}｜${isNum(r.price_from) ? "¥" + r.price_from.toLocaleString("ja-JP") + "〜" : "要相談"}</span></div></label>`).join("");
     const inc = (prices.cleanup_includes || []).map((s) => `<li>${esc(s)}</li>`).join("");
+    const rows = Q.cleanupRows(st.kind, prices);
+    const other = Q.otherCleanupDef(st.kind, prices);
+    let step2;
+    if (rows) {
+      const layouts = rows.map((r) => `<label class="choice"><input type="radio" name="layout" value="${esc(r.layout)}"${st.layout === r.layout ? " checked" : ""}><div><b>${esc(r.layout)}</b><span>${Q.hoursText(r.hours) ? "作業 " + esc(Q.hoursText(r.hours)) : "作業時間は確認中"}｜${isNum(r.price_from) ? "¥" + r.price_from.toLocaleString("ja-JP") + "〜" : "要相談"}</span></div></label>`).join("");
+      step2 = `<fieldset><legend>2. 間取りを選ぶ <span class="req">必須</span></legend><div class="choices" data-group="layout">${layouts}</div>
+<p class="hint" style="margin-top:8px">料金に含まれるもの：</p><ul class="check" style="font-size:.95rem">${inc}</ul></fieldset>`;
+    } else if (other) {
+      step2 = `<fieldset><legend>2. 広さ（坪数） <span class="req">必須</span></legend>
+<label class="f" for="f-tsubo" style="margin-top:0">${esc(other.name)}の広さ（坪）</label>
+<input type="number" id="f-tsubo" name="tsubo" min="1" max="10000" inputmode="numeric" value="${esc(st.tsubo)}" style="max-width:10em">
+<p class="hint">${esc(other.per_tsubo + "坪あたり")} ${isNum(other.price_from) ? "¥" + other.price_from.toLocaleString("ja-JP") + "〜" : "要相談"}。${esc(other.per_tsubo)}坪単位で切り上げて計算します。1坪はおよそ畳2枚分です。</p></fieldset>`;
+    } else {
+      step2 = `<fieldset><legend>2. 内容</legend><p class="hint">その他の片付けは、ご要望の欄に内容を書いてください。担当者が金額をご案内します。</p></fieldset>`;
+    }
     return `<fieldset><legend>1. 片付けの種類</legend><div class="choices">${kinds}</div></fieldset>
-<fieldset><legend>2. 間取りを選ぶ <span class="req">必須</span></legend><div class="choices" data-group="layout">${layouts}</div>
-<p class="hint" style="margin-top:8px">料金に含まれるもの：</p><ul class="check" style="font-size:.95rem">${inc}</ul></fieldset>
+${step2}
 ${optionRows("C")}${buybackBlock()}`;
   }
 
@@ -133,7 +162,22 @@ ${optionRows("C")}${buybackBlock()}`;
     : "";
 
   // B は量・C は間取りを選んだか（A は品目の有無を r から見る）
-  const chosenNow = () => (st.form === "B" ? !!st.tier : st.form === "C" ? !!st.layout : true);
+  const chosenNow = () => {
+    if (st.form === "B") return !!st.tier;
+    if (st.form !== "C") return true;
+    if (TSUBO_KINDS.includes(st.kind)) return Number(st.tsubo) > 0;
+    return Q.cleanupRows(st.kind, prices) ? !!st.layout : true;
+  };
+  // 特典の案内（概算の箱の下）
+  function perksHTML(r) {
+    const pk = prices.perks || {};
+    const out = [];
+    if (r.same_day && pk.same_day_up && isNum(pk.same_day_up.rate)) out.push(`同日査定で買取見込みを${Math.round(pk.same_day_up.rate * 100)}%アップして表示しています。`);
+    const quo = r.perks && r.perks.quo_card;
+    if (pk.quo_card && quo === "eligible") out.push(`${esc(pk.quo_card.name)}の対象です（買取金額の合計が¥${pk.quo_card.threshold.toLocaleString("ja-JP")}以上）。`);
+    else if (pk.quo_card && quo === "possible") out.push(`査定で買取金額の合計が¥${pk.quo_card.threshold.toLocaleString("ja-JP")}以上になると、${esc(pk.quo_card.name)}。`);
+    return out.length ? `<p class="est-break est-perk">${out.join("<br>")}</p>` : "";
+  }
   function estimateHTML(r) {
     return band + estimateBody(r);
   }
@@ -145,17 +189,17 @@ ${optionRows("C")}${buybackBlock()}`;
     if (st.form === "A") {
       const val = estimateValueText("A", r);
       return `<div class="est-row"><span class="est-label">買取見込み（目安）</span><span class="est-value" data-est-value>${val}</span><span class="est-note">買取見込み額は目安。最終額は訪問査定で確定します</span></div>
-${hasItems ? `<ul>${lines}</ul>` : ""}${hasItems && r.undetermined ? und : ""}${bb.lines.some((l) => l.year === "over") ? '<p class="est-break">年式の目安を超えた家電は買取ではなく回収扱いです。回収費用は<a href="../kataduke/#form-b">不用品回収</a>でご確認ください。</p>' : ""}`;
+${hasItems ? `<ul>${lines}</ul>` : ""}${perksHTML(r)}${hasItems && r.undetermined ? und : ""}${bb.lines.some((l) => l.year === "over") ? '<p class="est-break">年式の目安を超えた家電は買取ではなく回収扱いです。回収費用は<a href="../kataduke/#form-b">不用品回収</a>でご確認ください。</p>' : ""}`;
     }
     const chosen = chosenNow();
     const val = estimateValueText(st.form, r, chosen);
     const cost = r.cost.undetermined ? "要相談" : yen(r.cost.amount) + "〜";
-    const bbText = !hasItems ? "¥0" : bb.undetermined ? "要相談" : bb.max === 0 ? "¥0" : "¥0〜" + yen(bb.max).slice(1);
-    const opLines = r.lines.filter((l) => l.consult || l.unit !== undefined).map((l) => `<li>${esc(l.name)}${l.qty > 1 ? " ×" + l.qty : ""}：${l.consult ? "別途ご案内" : l.undetermined ? "要相談" : yen(l.amount)}</li>`).join("");
+    const bbText = !hasItems ? "¥0" : bb.undetermined ? "要相談" : bb.max === 0 ? "¥0" : yen(bb.min || 0) + "〜" + yen(bb.max).slice(1);
+    const opLines = r.lines.filter((l) => l.consult || l.unit !== undefined).map((l) => `<li>${esc(l.name)}${l.qty > 1 ? " ×" + l.qty : ""}：${l.consult ? "別途ご案内" : l.undetermined ? "要相談" : l.amount === 0 ? "無料" : yen(l.amount)}</li>`).join("");
     const hours = st.form === "C" && r.layout ? `<p class="est-break">作業時間の目安：${esc(Q.hoursText(r.hours) || "確認中")}</p>` : "";
     return `<div class="est-row"><span class="est-label">お会計の目安</span><span class="est-value" data-est-value>${val}</span><span class="est-note">${esc(Q.OFFSET_NOTE)}</span></div>
 <p class="est-break"><b>${st.form === "B" ? "回収費用" : "片付け費用"} ${cost}</b> − <b>買取見込み ${bbText}</b> ＝ お会計</p>${hours}
-${opLines ? `<ul>${opLines}</ul>` : ""}${hasItems ? `<ul>${lines}</ul>` : ""}${chosen && r.undetermined ? und : ""}`;
+${opLines ? `<ul>${opLines}</ul>` : ""}${hasItems ? `<ul>${lines}</ul>` : ""}${perksHTML(r)}${chosen && r.undetermined ? und : ""}`;
   }
 
   // ---------- 画面の骨組み ----------
@@ -196,7 +240,7 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
 </fieldset>
 <fieldset><legend>費用が出た場合のお支払い方法</legend>
 <div class="choices">${PAYMENTS.map((p, i) => `<label class="choice"><input type="radio" name="payment" value="${p.id}"${i === 0 ? " checked" : ""}><div><b>${esc(p.label)}</b></div></label>`).join("")}</div>
-<p class="hint">買取代金のお受け取りは、その場で現金が基本です（方針確認中）。</p>
+<p class="hint">回収・片付けの費用は、現金・クレジットカード・PayPay でお支払いいただけます。買取代金のお受け取りは現金が基本で、高額の場合は銀行振込です。</p>
 </fieldset>
 <label class="f" for="f-note">ご要望・伝えたいこと<span class="opt">任意</span></label>
 <textarea id="f-note" name="note" placeholder="例：2階から降ろしたい、駐車場がない、平日の夕方が都合がよい など"></textarea>
@@ -313,12 +357,19 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
     else if (t.dataset.consult) st.options[t.dataset.consult] = t.checked ? 1 : 0;
     else if (t.name === "tier") st.tier = t.value;
     else if (t.name === "layout") st.layout = t.value;
-    else if (t.name === "kind") st.kind = t.value;
+    else if (t.dataset.sameDay !== undefined) st.sameDay = t.checked;
+    else if (t.name === "kind") { st.kind = t.value; renderPanel(); }
+    else if (t.name === "tsubo") st.tsubo = t.value;
     else if (t.name === "photos") {
       const n = t.files ? t.files.length : 0;
       root.querySelector("#f-photos-info").innerHTML = (n ? `<b>${n}枚</b>選択中。` : "") + "このフォームで送るのはファイル名と枚数だけです。<b>写真そのものは LINE で送ってください。</b>";
       return;
     } else return;
+    renderEst();
+  });
+  form.addEventListener("input", (e) => {
+    if (e.target.name !== "tsubo") return;
+    st.tsubo = e.target.value;
     renderEst();
   });
   form.elements.name_kana.addEventListener("blur", (e) => { e.target.value = toKata(e.target.value).trim(); });
@@ -334,7 +385,10 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
     const input = currentInput();
     if (st.form === "A" && !input.items.length) bad(panel.querySelector("[data-step]"), "売りたい物を1つ以上選んでください。");
     if (st.form === "B" && !st.tier) bad(panel.querySelector("input[name=tier]"), "回収する量を選んでください。");
-    if (st.form === "C" && !st.layout) bad(panel.querySelector("input[name=layout]"), "間取りを選んでください。");
+    if (st.form === "C" && !chosenNow()) {
+      if (TSUBO_KINDS.includes(st.kind)) bad(panel.querySelector("input[name=tsubo]"), "広さ（坪数）を入れてください。");
+      else bad(panel.querySelector("input[name=layout]"), "間取りを選んでください。");
+    }
     el.name_kana.value = toKata(el.name_kana.value).trim();
     if (!el.name_kana.value) bad(el.name_kana, "お名前（カナ）を入れてください。");
     else if (!/^[゠-ヿ\s　]+$/.test(el.name_kana.value)) bad(el.name_kana, "お名前はカタカナで入れてください。");
@@ -394,7 +448,7 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
   function quoteText(p) {
     const r = p.quote;
     const pv = r.provisional ? "・仮の目安" : "";
-    if (p.form === "A") return r.undetermined ? "要相談" : r.max === 0 ? "0円（回収扱い）" : "0円 〜 " + yen(r.max) + "（買取見込み" + pv + "）";
+    if (p.form === "A") return r.undetermined ? "要相談" : r.max === 0 ? "0円（回収扱い）" : estimateValueText("A", r) + "（買取見込み" + pv + "）";
     return r.undetermined ? "要相談" : fmtRange(r.min, r.max) + "（お会計の目安" + pv + "）";
   }
   function detailText(p) {
@@ -402,7 +456,8 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
     const bb = p.form === "A" ? r.buyback : r.buyback_detail;
     const out = [];
     if (p.form === "B") out.push("量：" + (r.lines[0] ? r.lines[0].name : "—"));
-    if (p.form === "C") out.push("種類：" + Q.CLEANUP_KINDS[r.cleanup_kind] + "／間取り：" + (r.layout || "—"));
+    if (p.form === "C") out.push("種類：" + Q.CLEANUP_KINDS[r.cleanup_kind] + (r.tsubo ? "／広さ：" + r.tsubo + "坪" : "／間取り：" + (r.layout || "—")));
+    if (r.same_day) out.push("同日査定（買取見込み +20%）");
     if (p.form !== "A") r.lines.slice(1).forEach((l) => out.push("オプション：" + l.name + (l.qty > 1 ? " ×" + l.qty : "")));
     bb.lines.forEach((l) => out.push("買取：" + l.name + " ×" + l.qty + "（" + YEAR_LABELS[l.year] + "・" + COND_LABELS[l.condition].replace(/（.*/, "") + "）"));
     return out.join("\n") || "—";

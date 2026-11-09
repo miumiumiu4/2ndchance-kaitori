@@ -22,15 +22,28 @@ test("prices.json：金額・時間は null か 0 以上の数値、id は重複
   assert.equal(p.currency, "JPY");
   assert.ok(p.updated === null || /^\d{4}-\d{2}-\d{2}$/.test(p.updated), "updated は null か YYYY-MM-DD");
   p.collection_tiers.forEach((t) => assert.ok(nullOrNum(t.price_from), "tier " + t.id));
-  p.cleanup_by_layout.forEach((r) => { assert.ok(nullOrNum(r.price_from), r.layout); assert.ok(hoursOk(r.hours), r.layout); });
-  p.buyback_items.forEach((b) => { assert.ok(nullOrNum(b.max_price), b.id); assert.ok(nullOrNum(b.year_limit), b.id); });
-  p.options.forEach((o) => assert.ok(nullOrNum(o.price), o.id));
+  for (const [k, rows] of Object.entries(p.cleanup_by_kind)) {
+    rows.forEach((r) => { assert.ok(nullOrNum(r.price_from), k + " " + r.layout); assert.ok(hoursOk(r.hours), k + " " + r.layout); });
+    assert.equal(new Set(rows.map((r) => r.layout)).size, rows.length, k);
+  }
+  p.other_cleanup.forEach((o) => { assert.ok(nullOrNum(o.price_from), o.id); assert.ok(o.per_tsubo > 0, o.id); });
+  p.buyback_items.forEach((b) => {
+    assert.ok(nullOrNum(b.max_price), b.id); assert.ok(nullOrNum(b.min_price), b.id); assert.ok(nullOrNum(b.year_limit), b.id);
+    if (b.min_price !== null && b.max_price !== null) assert.ok(b.min_price <= b.max_price, b.id + " 最低額 ≦ 上限");
+  });
+  p.options.forEach((o) => { assert.ok(nullOrNum(o.price), o.id); Object.values(o.price_by_form || {}).forEach((v) => assert.ok(nullOrNum(v), o.id)); });
+  // 配送料：max_km は小さい順、最後だけ null（要相談）
+  const dt = p.delivery_tiers;
+  dt.forEach((d, i) => { assert.ok(nullOrNum(d.fee), d.label); if (i < dt.length - 1) assert.ok(d.max_km > (i ? dt[i - 1].max_km : 0), d.label); });
+  assert.equal(dt[dt.length - 1].max_km, null);
   for (const [k, v] of Object.entries(p.condition_factor)) if (!k.startsWith("_")) assert.ok(typeof v === "number" && v >= 0 && v <= 1, k);
   for (const list of [p.collection_tiers, p.buyback_items, p.options]) {
     const ids = list.map((x) => x.id);
     assert.equal(new Set(ids).size, ids.length);
   }
-  assert.equal(new Set(p.cleanup_by_layout.map((r) => r.layout)).size, p.cleanup_by_layout.length);
+  // 種類ごとの間取り表は同じ間取りの並び
+  const lays = Object.values(p.cleanup_by_kind).map((rows) => rows.map((r) => r.layout).join("|"));
+  assert.equal(new Set(lays).size, 1, "種類ごとの間取りの並びが同じ");
 });
 
 test("prices.json：provisional は真偽値、true なら provisional_note がある", () => {
@@ -41,7 +54,30 @@ test("prices.json：provisional は真偽値、true なら provisional_note が�
 
 test("prices.json は prices.template.json と同じ形（キーが欠けていない）", () => {
   const keys = (o) => Object.keys(o).sort();
-  assert.deepEqual(keys(read("data/prices.json")), keys(read("prices.template.json")));
+  const p = read("data/prices.json"), t = read("prices.template.json");
+  assert.deepEqual(keys(p), keys(t));
+  assert.deepEqual(keys(p.cleanup_by_kind), keys(t.cleanup_by_kind));
+  assert.deepEqual(keys(p.perks), keys(t.perks));
+});
+
+test("prices.json：11/9 打合せの金額（家電の年式 5年・最低額・特典・解体は片付けで無料）", () => {
+  const p = read("data/prices.json");
+  assert.equal(p.updated, "2026-11-09");
+  const b = Object.fromEntries(p.buyback_items.map((x) => [x.id, x]));
+  ["fridge", "washer", "microwave", "gas_stove", "carpet", "curtain"].forEach((id) => assert.equal(b[id].year_limit, 5, id));
+  assert.deepEqual([b.fridge.min_price, b.fridge.max_price], [1000, 20000]);
+  assert.deepEqual([b.gas_stove.min_price, b.gas_stove.max_price], [500, 3000]);
+  assert.equal(p.perks.quo_card.threshold, 15000);
+  assert.equal(p.perks.same_day_up.rate, 0.2);
+  assert.ok(!JSON.stringify(p).includes("40%"), "40% は書かない");
+  const o = Object.fromEntries(p.options.map((x) => [x.id, x]));
+  assert.equal(o.stairs.price, 0);
+  assert.equal(o.dismantle.price, 2000);
+  assert.equal(o.dismantle.price_by_form.C, 0);
+  assert.equal(p.cleanup_by_kind.ihin[0].layout, "1R・1K");
+  assert.equal(p.cleanup_by_kind.seizen[0].price_from, 15000);
+  assert.ok(p.cleanup_by_kind.seizen.slice(1).every((r) => r.price_from === null), "生前整理の 1DK 以上は確認中");
+  assert.equal(p.collection_tiers.find((t) => t.id === "mini").price_from, 12000);
 });
 
 test("items.json：prices.json の品目と1対1、アイコンがある", () => {
@@ -88,6 +124,7 @@ test("data/*.json に個人情報らしき文字列が無い", () => {
     { name: "様", re: /[一-龥ァ-ヶ]{1,6}様/ }
   ];
   for (const f of fs.readdirSync(path.join(ROOT, "data"))) {
+    if (!f.endsWith(".json")) continue; // data/postal/ は tests/delivery-core.test.mjs が確かめる
     const text = fs.readFileSync(path.join(ROOT, "data", f), "utf8");
     assert.deepEqual(scanText(text), [], f);
     // 「お客様」と更新日（"updated": "YYYY-MM-DD"）は対象外

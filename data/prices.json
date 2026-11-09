@@ -1,41 +1,85 @@
 {
-  "_note": "概算フォーム・料金ページ・AI向けJSON・GAS再計算が共通で読む価格表。provisional: true のあいだは一般的な相場をもとにした仮の金額（オーナー指示）。共同代表の正式な金額が来たら差し替え、provisional を false にする。null は「要相談」表示。",
+  "_note": "概算フォーム・料金ページ・AI向けJSON・GAS再計算が共通で読む価格表。provisional: true のあいだは仮の金額（2026年11月9日 共同代表との打合せで決めた目安）。正式に確定したら provisional を false にする。null は「要相談」表示。",
   "currency": "JPY",
   "tax": "included",
-  "updated": "2026-11-07",
+  "updated": "2026-11-09",
   "provisional": true,
-  "provisional_note": "現在の金額は一般的な相場をもとにした仮の目安です。正式な金額に調整中で、最終額は訪問査定で確定します。",
+  "provisional_note": "現在の金額は共同代表との打合せ（2026年11月9日）で決めた仮の目安です。正式な金額に調整中で、最終額は訪問査定で確定します。",
   "disclaimer": "表示額は目安です。最終額は訪問査定で確定します。",
   "collection_tiers": [
     { "id": "small",  "name": "少量（袋〜数点）",      "price_from": 6000,  "note": "例：少量（袋数個）" },
-    { "id": "mini",   "name": "軽トラック1台分",       "price_from": 18000, "note": "例：軽トラック1台分" },
-    { "id": "basic",  "name": "1.5tトラック1台分",     "price_from": 35000, "note": "例：1.5t〜2tトラック" },
-    { "id": "large",  "name": "2tトラック1台分",       "price_from": 60000, "note": "例：2t以上" }
+    { "id": "mini",   "name": "軽トラック1台分",       "price_from": 12000, "note": "例：軽トラック1台分" },
+    { "id": "basic",  "name": "1.5tトラック1台分",     "price_from": 35000, "note": "例：1.5tトラック" },
+    { "id": "large",  "name": "2tトラック1台分",       "price_from": 60000, "note": "例：2tトラック" }
   ],
-  "cleanup_by_layout": [
-    { "layout": "1K",        "hours": "1〜2時間",  "price_from": 15000 },
-    { "layout": "1DK・1LDK", "hours": "2〜3時間",  "price_from": 30000 },
-    { "layout": "2DK・2LDK", "hours": "3〜5時間",  "price_from": 50000 },
-    { "layout": "3DK・3LDK", "hours": "4〜6時間",  "price_from": 80000 },
-    { "layout": "4LDK",      "hours": "5〜8時間",  "price_from": 120000 },
-    { "layout": "5LDK",      "hours": "6〜10時間", "price_from": 150000 }
-  ],
+  "cleanup_by_kind": {
+    "ihin": [
+      { "layout": "1R・1K",    "hours": "1〜2時間",  "price_from": 30000 },
+      { "layout": "1DK・1LDK", "hours": "2〜3時間",  "price_from": 50000 },
+      { "layout": "2DK・2LDK", "hours": "3〜5時間",  "price_from": 90000 },
+      { "layout": "3DK・3LDK", "hours": "4〜6時間",  "price_from": 150000 },
+      { "layout": "4LDK",      "hours": "5〜8時間",  "price_from": 380000 },
+      { "layout": "5LDK",      "hours": "6〜10時間", "price_from": 420000 }
+    ],
+    "seizen": [
+      { "layout": "1R・1K",    "hours": "1〜2時間",  "price_from": 15000 },
+      { "layout": "1DK・1LDK", "hours": "2〜3時間",  "price_from": null },
+      { "layout": "2DK・2LDK", "hours": "3〜5時間",  "price_from": null },
+      { "layout": "3DK・3LDK", "hours": "4〜6時間",  "price_from": null },
+      { "layout": "4LDK",      "hours": "5〜8時間",  "price_from": null },
+      { "layout": "5LDK",      "hours": "6〜10時間", "price_from": null }
+    ],
+    "gomiyashiki": [
+      { "layout": "1R・1K",    "hours": "1〜2時間",  "price_from": 30000 },
+      { "layout": "1DK・1LDK", "hours": "2〜3時間",  "price_from": 45000 },
+      { "layout": "2DK・2LDK", "hours": "3〜5時間",  "price_from": 50000 },
+      { "layout": "3DK・3LDK", "hours": "4〜6時間",  "price_from": 75000 },
+      { "layout": "4LDK",      "hours": "5〜8時間",  "price_from": 120000 },
+      { "layout": "5LDK",      "hours": "6〜10時間", "price_from": 150000 }
+    ],
+    "akiya": [
+      { "layout": "1R・1K",    "hours": "1〜2時間",  "price_from": 20000 },
+      { "layout": "1DK・1LDK", "hours": "2〜3時間",  "price_from": 40000 },
+      { "layout": "2DK・2LDK", "hours": "3〜5時間",  "price_from": 50000 },
+      { "layout": "3DK・3LDK", "hours": "4〜6時間",  "price_from": 80000 },
+      { "layout": "4LDK",      "hours": "5〜8時間",  "price_from": 120000 },
+      { "layout": "5LDK",      "hours": "6〜10時間", "price_from": 150000 }
+    ]
+  },
   "cleanup_includes": ["分別・仕分け", "回収・処分", "人件費", "車両・運搬", "貴重品の捜索", "買取品の査定", "建物の養生", "作業後の清掃"],
+  "other_cleanup": [
+    { "id": "souko",    "name": "倉庫の片付け", "per_tsubo": 10, "price_from": 50000, "note": "10坪あたり" },
+    { "id": "kusakari", "name": "草刈り",       "per_tsubo": 10, "price_from": 35000, "note": "10坪あたり" }
+  ],
   "buyback_items": [
-    { "id": "fridge",     "name": "冷蔵庫",       "max_price": 15000, "year_limit": 7 },
-    { "id": "washer",     "name": "洗濯機",       "max_price": 10000, "year_limit": 7 },
-    { "id": "microwave",  "name": "電子レンジ",   "max_price": 3000,  "year_limit": 7 },
-    { "id": "gas_stove",  "name": "ガスコンロ",   "max_price": 3000,  "year_limit": 7 },
-    { "id": "sofa",       "name": "ソファ・ソファベッド", "max_price": 8000, "year_limit": 10 },
-    { "id": "table",      "name": "ダイニングテーブル", "max_price": 5000, "year_limit": 10 },
-    { "id": "cupboard",   "name": "食器棚",       "max_price": 5000,  "year_limit": 10 },
-    { "id": "carpet",     "name": "カーペット",   "max_price": 1000,  "year_limit": 5 },
-    { "id": "curtain",    "name": "カーテン",     "max_price": 1000,  "year_limit": 5 }
+    { "id": "fridge",     "name": "冷蔵庫",       "min_price": 1000, "max_price": 20000, "year_limit": 5 },
+    { "id": "washer",     "name": "洗濯機",       "min_price": 1000, "max_price": 20000, "year_limit": 5 },
+    { "id": "microwave",  "name": "電子レンジ",   "min_price": 1000, "max_price": 3000,  "year_limit": 5 },
+    { "id": "gas_stove",  "name": "ガスコンロ",   "min_price": 500,  "max_price": 3000,  "year_limit": 5 },
+    { "id": "sofa",       "name": "ソファ・ソファベッド", "min_price": 1000, "max_price": 10000, "year_limit": 10 },
+    { "id": "table",      "name": "ダイニングテーブル", "min_price": 500, "max_price": 5000, "year_limit": 10 },
+    { "id": "cupboard",   "name": "食器棚",       "min_price": 1000, "max_price": 10000, "year_limit": 10 },
+    { "id": "carpet",     "name": "カーペット",   "min_price": 1000, "max_price": 20000, "year_limit": 5 },
+    { "id": "curtain",    "name": "カーテン",     "min_price": 500,  "max_price": 5000,  "year_limit": 5 }
   ],
   "condition_factor": { "good": 1.0, "normal": 0.6, "damaged": 0.2, "_note": "状態係数の初期案（仮）。共同代表の確認待ち" },
   "options": [
-    { "id": "stairs",    "name": "階段での運び出し", "price": 3000, "unit": "回" },
-    { "id": "dismantle", "name": "解体が必要な場合", "price": 2000, "unit": "点" },
+    { "id": "stairs",    "name": "階段での運び出し", "price": 0,    "unit": "回" },
+    { "id": "dismantle", "name": "解体が必要な場合", "price": 2000, "unit": "点", "price_by_form": { "C": 0 }, "note": "片付け（お任せ）では無料" },
     { "id": "aircon_removal", "name": "エアコン取外し", "price": 5000, "unit": "台" }
+  ],
+  "perks": {
+    "quo_card": { "name": "クオカード 500円分プレゼント", "threshold": 15000, "value": 500, "desc": "買取金額の合計が15,000円以上で、クオカード500円分をプレゼントします（訪問査定で確定した金額が対象）。" },
+    "same_day_up": { "name": "同日査定で買取額20%アップ", "rate": 0.2, "desc": "エアコンクリーニング・ハウスクリーニングと同じ日に買取・回収の査定をすると、移動と時間が省ける分を還元して査定額を20%アップします（例：10,000円の冷蔵庫→12,000円）。" }
+  },
+  "delivery_tiers": [
+    { "max_km": 3,    "fee": 0,     "label": "3km以内" },
+    { "max_km": 10,   "fee": 2000,  "label": "10km以内" },
+    { "max_km": 15,   "fee": 3000,  "label": "15km以内" },
+    { "max_km": 20,   "fee": 4000,  "label": "20km以内" },
+    { "max_km": 25,   "fee": 5000,  "label": "25km以内" },
+    { "max_km": 30,   "fee": 6000,  "label": "30km以内" },
+    { "max_km": 50,   "fee": 10000, "label": "30〜50km" },
+    { "max_km": null, "fee": null,  "label": "50km超（要相談）" }
   ]
 }

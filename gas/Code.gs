@@ -18,7 +18,7 @@ var HEADERS = [
   '第1希望', '第2希望', '第3希望', '写真(枚)', '写真(ファイル名)', '支払い方法', '要望', 'ページ'
 ];
 var FORM_NAMES = { A: '出張買取', B: '不用品回収', C: '片付け' };
-var PAYMENT_NAMES = { cash: '現金', paypay: 'PayPay', invoice: '請求リンク' };
+var PAYMENT_NAMES = { cash: '現金', card: 'クレジットカード', paypay: 'PayPay' };
 
 function props_() { return PropertiesService.getScriptProperties(); }
 function siteName_() { return props_().getProperty('SITE_NAME') || '2nd chance recycle'; }
@@ -110,14 +110,16 @@ function cell_(v) {
 function quoteStr_(form, q) {
   if (!q) return '';
   if (q.undetermined) return '要相談';
-  return form === 'A' ? ('0〜' + q.max) : (q.min + '〜' + q.max);
+  return (q.min + '〜' + q.max) + (q.same_day ? '（同日+20%）' : '');
 }
 
 function detail_(body, re) {
   var out = [];
   var bb = body.form === 'A' ? re.buyback : re.buyback_detail;
   if (body.form === 'B') out.push('量：' + (re.tier || '—'));
-  if (body.form === 'C') out.push('種類：' + (QuoteCore.CLEANUP_KINDS[re.cleanup_kind] || '') + '／間取り：' + (re.layout || '—'));
+  if (body.form === 'C') out.push('種類：' + (QuoteCore.CLEANUP_KINDS[re.cleanup_kind] || '') + (re.tsubo ? '／広さ：' + re.tsubo + '坪' : '／間取り：' + (re.layout || '—')));
+  if (re.same_day) out.push('同日査定（買取見込み +20%）');
+  if (re.perks && re.perks.quo_card) out.push('クオカード特典：' + (re.perks.quo_card === 'eligible' ? '対象' : '査定しだい'));
   if (body.form !== 'A') re.lines.forEach(function (l) { if (l.unit !== undefined || l.consult) out.push('オプション：' + l.name + ' ×' + l.qty); });
   (bb ? bb.lines : []).forEach(function (l) { out.push('買取：' + l.name + ' ×' + l.qty + '（年式 ' + l.year + '・状態 ' + l.condition + '）'); });
   return out.join('\n');
@@ -155,7 +157,7 @@ function appendRow_(id, b, re, match) {
 
 function money_(form, q) {
   if (q.undetermined) return '要相談';
-  if (form === 'A') return q.max === 0 ? '0円（回収扱い）' : '0円〜' + q.max.toLocaleString() + '円（買取見込み）';
+  if (form === 'A') return q.max === 0 ? '0円（回収扱い）' : q.min.toLocaleString() + '円〜' + q.max.toLocaleString() + '円（買取見込み' + (q.same_day ? '・同日査定 +20%' : '') + '）';
   var f = function (n) { return n < 0 ? 'お受け取り ' + (-n).toLocaleString() + '円' : n.toLocaleString() + '円'; };
   return (q.min === q.max ? f(q.min) : f(q.min) + '〜' + f(q.max)) + '（お会計の目安）';
 }

@@ -59,9 +59,12 @@ npm test               # 全部緑になってからコミット
 | `TEL` | 電話（タップで発信） | ボタンは「準備中」で押せない |
 | `GAS_URL` | GAS ウェブアプリの URL | 確認画面の送信ボタンが「準備中」。入力と概算は画面に残る |
 | `AREA_CENTER` | `熊本県合志市` | — |
-| `HOURS` | 人向けの受付時間 | 「準備中」 |
-| `OPENING_HOURS_SPEC` | 任意。schema.org の形（例の形 `Mo-Sa 09:00-18:00`） | JSON-LD から省略 |
-| `OPENING_NOTE` | 上部のお知らせ帯 | 帯を出さない |
+| `STORE_ADDRESS` | 店の住所（チラシに印刷された公開情報）。フッターと LocalBusiness の `address` | 中心の市町村名だけ |
+| `STORE_LATLNG` | 店の位置 `[緯度, 経度]`。配送料の距離の起点（幾久富の町域中心） | — |
+| `HOURS` | 人向けの営業時間。既定 `10:00〜19:00`（チラシの表記） | 「準備中」 |
+| `OPENING_HOURS_SPEC` | 任意。schema.org の形。定休日が分かるまで入れない | JSON-LD から省略 |
+| `MAIL_PERK_TEXT` | メール会員の登録特典の文言（既定「登録特典は準備中です」） | — |
+| `OPENING_NOTE` | 上部のお知らせ帯。`LINE_URL` と `TEL` が両方入るまでだけ出る | 帯を出さない |
 
 **電話・LINE・GAS の URL はリポジトリに書かない**（`tests/secret-grep.mjs` が止める）。GitHub の Settings → Secrets and variables → Actions → **Variables** に `CFG_SITE_URL`・`CFG_LINE_URL`・`CFG_TEL`・`CFG_GAS_URL`・`CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`（エアコン送客は `CFG_AIRCON_REF_PARAM`・`CFG_AIRCON_REF_CODE`）として入れると、公開のときに `node tools/build.mjs --out _site` が公開用の写しにだけ差し込む。
 
@@ -70,17 +73,20 @@ npm test               # 全部緑になってからコミット
 
 | 項目 | 中身 | 空のとき |
 |---|---|---|
-| `AIRCON_BOOKING_URL` | 予約フォームの公開 URL（秘密ではない） | — |
+| `AIRCON_BOOKING_URL` | 予約フォームの入口（welcome ページ・`?src=2ndchance` 付き）の公開 URL（秘密ではない） | — |
 | `AIRCON_REF_PARAM` | 流入経路のパラメータ名。今は `ref` | — |
 | `AIRCON_REF_CODE` | 紹介番号（12月から会社番号） | パラメータ無しの素の URL でリンク（ボタンは出す） |
 
 1. 紹介番号が来たら `AIRCON_REF_CODE` に入れる（または Actions Variables の `CFG_AIRCON_REF_CODE`）。
-2. `node tools/build.mjs` → `npm test` → push。リンクは `…/arigatou-booking/?ref=<紹介番号>` になる。
+2. `node tools/build.mjs` → `npm test` → push。リンクは `…/arigatou-booking/welcome/?src=2ndchance&ref=<紹介番号>` になる（welcome ページが src・ref・utm_* を予約フォームへ引き継ぐ）。
 3. **12月の凍結明け**：`AIRCON_REF_PARAM` を `partner`、`AIRCON_REF_CODE` を会社番号（`C0xx`）にして、同じく build → test → push。
 
 ### 2. `data/prices.json`
 - 金額は共同代表が決めたものだけ入れる。`null` の間は画面・料金表・AI 向けが「要相談」と出す。
-- 今は**仮の一般的な金額**（2026-11-07 オーナー指示）。`provisional: true` のあいだ、料金ページ・トップの料金要約・フォームの概算の上に「仮の目安（調整中）」の帯と `provisional_note` を出し、llms.txt・JSON-LD・概算 API の返り値にも仮の旨が載る。正式な金額が来たら値を差し替え、`provisional` を `false` にする（帯は自動で消える）。
+- 今は**仮の金額**（2026-11-09 共同代表との打合せで決めた目安。それ以前は 2026-11-07 オーナー指示の一般的な相場）。`provisional: true` のあいだ、料金ページ・トップの料金要約・フォームの概算の上に「仮の目安（調整中）」の帯と `provisional_note` を出し、llms.txt・JSON-LD・概算 API の返り値にも仮の旨が載る。正式な金額が来たら値を差し替え、`provisional` を `false` にする（帯は自動で消える）。
+- 片付けは種類ごとの間取り表 `cleanup_by_kind`（`ihin`・`seizen`・`gomiyashiki`・`akiya`。どれも同じ間取りの並び）。倉庫・草刈りは `other_cleanup`（`per_tsubo` 坪あたり `price_from`。10坪単位で切り上げ）。
+- 買取は `min_price`（最低額。年式の目安以内なら下回らない）〜 `max_price`。オプションの `price_by_form` はフォーム別の料金（解体は片付け C で 0 円）。
+- 特典 `perks`（クオカード `quo_card.threshold`・同日査定 `same_day_up.rate`）と配送料 `delivery_tiers`（`max_km` の小さい順、最後は `null`＝要相談）も同じ表に持つ。
 - 片付けの作業時間 `hours` は数値（「約N時間」と表示）か「1〜2時間」のような文字列。
 - 形は `prices.template.json` と同じに保つ（テストが確かめる）。金額を入れたら `updated` を `YYYY-MM-DD` にする。
 - 変えたら `node tools/build.mjs` → `gas/Prices.gs` も作り直されるので、GAS 側も更新する（`gas/README.md`）。
