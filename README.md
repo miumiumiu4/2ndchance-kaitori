@@ -19,7 +19,8 @@
 | `tools/aircon.mjs` | ありがとうエアコンの予約フォームへのリンク（紹介番号のパラメータ）を作る純粋関数 |
 | `js/quote-core.js` | 概算の式（純粋関数）。画面・GAS・AI 向け API が同じ式を使う |
 | `js/form.js` | フォームの画面（入力→確認→送信→受付番号）。フォームが見えたら固定バーの上段に概算パネル |
-| `js/shop.js`・`js/shop-core.js` | 注文フォームの画面と、商品代（割引）・お支払いの目安（商品代＋配送料）の式。GAS は `gas/ShopCore.gs` で照合 |
+| `js/shop.js`・`js/shop-core.js` | 注文フォームの画面と、商品代（割引）・カート（`cartTotal` など：商品代の合計＋配送料1回分）の式。GAS は `gas/ShopCore.gs` で照合 |
+| `js/cart.js` | カート（`sessionStorage` に商品 id の配列）。一覧・商品ページの「カートに入れる」と、固定バーの上の「カートを見る（n点）」 |
 | `js/form-common.js` | フォーム共通：メールの形・メルマガ同意の記録（同意文のハッシュ先頭8桁）・分析用の `meta`（ページ・参照元・utm・端末・言語・画面）と郵便番号の上3桁 |
 | `js/delivery-core.js` | 郵便番号 → 配送料の式（純粋関数）。店からの直線距離 × 1.3 を道のりの目安にして `delivery_tiers` に当てはめる |
 | `data/postal/` | 郵便番号（7桁）→ 緯度経度の表（上3桁ごと）。`tools/build-postal.mjs` が作る生成物（コミットする） |
@@ -114,7 +115,9 @@ npm test               # 全部緑になってからコミット
 ## 販売ページ（段階1：注文受付のみ）
 - 商品は `data/shop.json`（`id`・`name`・`price`（税込、`null`＝確認中）・`sale`（割引率）・`year`・`condition`・`size`・`free_shipping`・`status`（`available`／`reserved`／`sold`）・`photos`・`note`・`payment_link`）。写真は `tools/photos.py` で作る（`assets/shop/README.md`）。
 - 入れ替え・売切れは `data/shop.json` を直して `node tools/build.mjs` → `npm test` → push。GAS の `Shop.gs` も更新する（`gas/README.md`）。
-- お支払いは受け取り時（現金・クレジットカード・PayPay）。取り置きは3日（仮）。**ネット決済は後から**：外部の決済ページ（PayPal・Stripe Payment Links など。業者の選定と契約はオーナー判断）の URL を商品の `payment_link` に入れると、その商品にだけ「カードで支払う（外部サイト）」ボタンが出る。
+- **カート**：一覧の各商品と商品ページに「カートに入れる」（押すと「カートから外す」。中古品は1点ものなので数量なし。売切れ・取り置き中は押せない）。カートは `sessionStorage`（タブを閉じると消える）で一覧と商品ページが共有し、1点以上あると固定バーの上に「カートを見る（n点）」が出る。注文フォームの「申し込む商品」に写真つきの行・「外す」・合計。空なら送信ボタンは押せない。
+- 金額：商品代の合計＝各商品の価格の和（確認中の商品は「＋確認中の商品」）。配送料は1注文で1回分：カートが全部送料無料なら 50km 以内は無料、1点でも送料無料でなければ郵便番号の通常の配送料。式は `js/shop-core.js` の `cartTotal` など（GAS も `ShopCore.gs` で同じ式）。
+- お支払いは受け取り時（現金・クレジットカード・PayPay）。取り置きは3日（仮）。**ネット決済は後から**：外部の決済ページ（PayPal・Stripe Payment Links など。業者の選定と契約はオーナー判断）の URL を商品の `payment_link` に入れると、その商品にだけ「カードで支払う（外部サイト）」ボタンが出る（商品ページと、注文の確認画面のその商品の行）。
 
 ## 配送料（郵便番号 → 距離 → 料金）
 - 料金は `data/prices.json` の `delivery_tiers`（店のチラシの表）。式は `js/delivery-core.js`：店（`STORE_LATLNG`）からの直線距離（haversine）× 1.3 を道のりの目安にし、区分の境目 ±1km は「お届けの前に確定」と出す。表に無い番号・50km 超は要相談。送料無料の商品は 50km 以内なら 0 円。

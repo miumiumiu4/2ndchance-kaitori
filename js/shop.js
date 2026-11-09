@@ -1,13 +1,15 @@
 // 販売ページの注文フォーム（段階1：注文受付のみ。お支払いは受け取り時）。
-// 商品を選ぶ → 受け取り方法（店頭／配送）→ 配送なら郵便番号から配送料の目安 → 確認画面 → 送信 → 受付番号。
-// 金額の式は shop-core.js（商品代）と delivery-core.js（配送料）。GAS_URL が空なら送信は「準備中」。
+// 一覧・商品ページで「カートに入れる」→ 申し込む商品（カートの中身）→ 受け取り方法（店頭／配送）
+// → 配送なら郵便番号から配送料の目安（1回の注文で1回分）→ 確認画面 → 送信 → 受付番号。
+// 金額の式は shop-core.js（商品代・カートの合計）と delivery-core.js（配送料）。カートの保存は cart.js。GAS_URL が空なら送信は「準備中」。
 import { CONFIG } from "./config.js";
 import * as S from "./shop-core.js";
 import * as D from "./delivery-core.js";
+import { getCart, setCart, onCartChange } from "./cart.js";
 import { NEWSLETTER_TEXT, isEmail, postal3, browserMeta, newsletterRecord } from "./form-common.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const yen = (n) => "¥" + Number(n).toLocaleString("ja-JP");
+const yen = S.yenText;
 const toHalf = (s) => String(s || "").replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
 const LOG_KEY = "shop-delivery-log-sent";
 
@@ -26,9 +28,24 @@ if (root) init(root).catch((e) => {
 async function init(root) {
   const base = root.dataset.base || "./";
   const [shop, prices] = await Promise.all([getJSON(base + "data/shop.json"), getJSON(base + "data/prices.json")]);
-  const items = shop.items.filter(S.orderable);
+  const st = { items: [], dropped: [], receive: "store", zip: "", dq: null };
+
+  // 商品ページの「カートに入れて注文フォームへ」（?item=<id>）で来たらカートに入れ、URL からは消す（再読み込みで戻らないように）
   const want = new URLSearchParams(location.search).get("item");
-  const st = { id: items.some((x) => x.id === want) ? want : "", receive: "store", zip: "", dq: null };
+  if (want) {
+    if (S.orderable(S.findItem(shop, want)) && !S.inCart(getCart(), want)) setCart(getCart().concat(want));
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch (_) {}
+  }
+  // カートの中身 → 販売中の商品。売切れ・取り置き中になった商品はカートから外して知らせる
+  function syncCart() {
+    const r = S.resolveCart(shop, getCart());
+    st.items = r.items;
+    if (r.dropped.length) {
+      r.dropped.forEach((id) => { const it = S.findItem(shop, id); if (it && st.dropped.indexOf(it.name) < 0) st.dropped.push(it.name); });
+      setCart(r.items.map((x) => x.id));
+    }
+  }
+  syncCart();
   const tables = {};
 
   // 郵便番号の表（上3桁ごと）。無ければ空の表＝要相談
@@ -41,16 +58,22 @@ async function init(root) {
     return tables[f];
   }
 
-  const priceText = (it) => {
+  const thumb = (it) => base + String((it.photos || [])[0] || "").replace(/\.jpg$/, "-480.jpg");
+  const priceHTML = (it) => {
     const p = S.shopPrice(it);
-    return p.undetermined ? "価格は確認中" : yen(p.price) + (p.sale ? `（${Math.round(p.sale * 100)}% OFF）` : "");
+    if (p.undetermined) return '<span class="consult">価格は確認中</span>';
+    return p.sale ? `<s>${yen(p.list)}</s> ${yen(p.price)}（${Math.round(p.sale * 100)}% OFF）` : yen(p.price);
+  };
+  // 商品の小さな行（写真・名前・価格）。注文フォームでは「外す」、確認画面では決済リンク（あれば）
+  const cartRow = (it, mode) => {
+    const pay = mode === "confirm" && it.payment_link ? `<a class="btn btn-ghost cart-pay" href="${esc(it.payment_link)}" target="_blank" rel="noopener">カードで支払う（外部サイト）</a>` : "";
+    const rm = mode === "form" ? `<button type="button" class="btn btn-ghost cart-remove" data-cart-remove="${esc(it.id)}" aria-label="${esc(it.name)} をカートから外す">外す</button>` : "";
+    return `<li class="cart-row"><img src="${esc(thumb(it))}" alt="" width="64" height="64" loading="lazy"><div class="cart-info"><a href="${base}shop/${esc(it.id)}/">${esc(it.name)}</a><span class="cart-price">${priceHTML(it)}</span>${it.free_shipping ? '<span class="cart-free">送料無料（50km以内）</span>' : ""}</div>${rm}${pay}</li>`;
   };
 
   root.innerHTML = `<form class="qform" novalidate>
-<fieldset><legend>1. 商品 <span class="req">必須</span></legend>
-<label class="f" for="o-item" style="margin-top:0">申し込む商品</label>
-<select id="o-item" name="product"><option value="">選んでください</option>${items.map((it) => `<option value="${esc(it.id)}"${st.id === it.id ? " selected" : ""}>${esc(it.name)}｜${esc(priceText(it))}</option>`).join("")}</select>
-<div id="o-item-info" class="hint"></div>
+<fieldset><legend>1. 申し込む商品 <span class="req">必須</span></legend>
+<div id="o-cart" aria-live="polite"></div>
 </fieldset>
 <fieldset><legend>2. 受け取り方法</legend>
 <div class="choices">${Object.entries(S.RECEIVE).map(([k, v], i) => `<label class="choice"><input type="radio" name="receive" value="${k}"${i === 0 ? " checked" : ""}><div><b>${esc(v)}</b><span>${k === "store" ? "お店でお渡しします（" + esc(shop.hold_note) + "）" : "郵便番号から配送料の目安を出します"}</span></div></label>`).join("")}</div>
@@ -92,28 +115,31 @@ async function init(root) {
 
   const form = root.querySelector("form");
   const el = form.elements;
-  const item = () => S.findItem(shop, st.id);
-
-  function renderInfo() {
-    const it = item();
-    const box = root.querySelector("#o-item-info");
-    if (!it) { box.innerHTML = ""; return; }
-    const pay = it.payment_link ? ` <a class="btn btn-ghost" href="${esc(it.payment_link)}" target="_blank" rel="noopener">カードで支払う（外部サイト）</a>` : "";
-    box.innerHTML = `${esc(it.condition)}${it.free_shipping ? "・送料無料（50km以内）" : ""}　<a href="${base}shop/${esc(it.id)}/">商品の詳細</a>${pay}`;
-  }
+  const submitBtn = form.querySelector("button[type=submit]");
 
   function totalNow() {
-    return S.orderTotal(item(), st.receive, st.dq);
+    return S.cartTotal(st.items, S.cartDeliveryFee(st.receive, st.dq));
+  }
+  function renderCart() {
+    const box = root.querySelector("#o-cart");
+    const gone = st.dropped.length ? `<p class="callout-warn">${esc(st.dropped.join("、"))} は売切れ・取り置き中になったため、カートから外しました。</p>` : "";
+    submitBtn.disabled = !st.items.length;
+    if (!st.items.length) {
+      box.innerHTML = gone + `<p class="empty" data-cart-empty>商品一覧から「カートに入れる」を押してください</p><p class="hint"><a href="#h-items">商品一覧へ</a></p>`;
+      return;
+    }
+    const t = totalNow();
+    box.innerHTML = gone + `<ul class="cart-list">${st.items.map((it) => cartRow(it, "form")).join("")}</ul>
+<p class="cart-sum">商品代の合計（${t.count}点）<b data-goods>${esc(S.cartGoodsText(t))}</b></p>`;
   }
   function renderTotal() {
-    const it = item();
     const box = root.querySelector("#o-total");
-    if (!it) { box.innerHTML = '<p class="est-break">商品を選ぶと、お支払いの目安が出ます。</p>'; return; }
+    if (!st.items.length) { box.innerHTML = '<p class="est-break">カートに商品を入れると、お支払いの目安が出ます。</p>'; return; }
     const t = totalNow();
-    const goods = t.goods === null ? "確認中" : yen(t.goods);
-    const fee = st.receive === "store" ? "店頭受け取り ¥0" : st.dq ? "配送料 " + D.deliveryFeeText(st.dq) : "配送料（郵便番号を入れてください）";
-    box.innerHTML = `<div class="est-row"><span class="est-label">お支払いの目安</span><span class="est-value" data-total>${t.undetermined ? "要相談" : yen(t.total)}</span><span class="est-note">税込。お支払いは受け取り時です</span></div>
-<p class="est-break order-total">商品代 <b>${goods}</b> ＋ ${esc(fee)}</p>${t.note ? `<p class="est-break">${esc(t.note)}</p>` : ""}`;
+    const fee = st.receive === "store" ? "店頭受け取り ¥0" : st.dq ? "配送料 " + D.deliveryFeeText(st.dq) + "（1回分）" : "配送料（郵便番号を入れてください）";
+    const mixed = st.receive === "delivery" && st.items.some((it) => it.free_shipping) && !S.cartFreeShipping(st.items);
+    box.innerHTML = `<div class="est-row"><span class="est-label">お支払いの目安</span><span class="est-value" data-total>${esc(S.cartTotalText(t))}</span><span class="est-note">税込。お支払いは受け取り時です</span></div>
+<p class="est-break order-total">商品代 <b>${esc(S.cartGoodsText(t))}</b>（${t.count}点）＋ ${esc(fee)}</p>${mixed ? '<p class="est-break">送料無料でない商品が入っているため、配送料がかかります（配送料は何点でも1回分）。</p>' : ""}${t.note ? `<p class="est-break">${esc(t.note)}</p>` : ""}`;
   }
 
   // 配送料の計算ログ（郵便番号・区分・日時だけ。1つのタブで1回だけ）
@@ -131,20 +157,33 @@ async function init(root) {
     const z = D.normalizeZip(st.zip);
     if (!z) { st.dq = null; out.textContent = st.zip ? "郵便番号は7桁で入れてください。" : ""; renderTotal(); return; }
     const table = await tableFor(z);
-    const it = item();
-    st.dq = D.deliveryQuote(z, table, prices, { store: CONFIG.STORE_LATLNG, freeShipping: !!(it && it.free_shipping) });
+    st.dq = D.deliveryQuote(z, table, prices, { store: CONFIG.STORE_LATLNG, freeShipping: S.cartFreeShipping(st.items) });
     out.innerHTML = `配送料の目安：<b data-delivery-fee>${esc(D.deliveryFeeText(st.dq))}</b>${st.dq.km !== null ? `（店から道のりでおよそ ${st.dq.km}km・${esc(st.dq.band)}）` : ""}${st.dq.note ? "<br>" + esc(st.dq.note) : ""}`;
     renderTotal();
     logOnce(st.dq);
   }
 
-  renderInfo();
+  renderCart();
   renderTotal();
+
+  // カートが変わったら（一覧のボタン・「外す」）行と金額を出し直す。配送料は送料無料の判定が変わるので計算し直す
+  onCartChange(() => {
+    syncCart();
+    renderCart();
+    if (st.receive === "delivery") updateDelivery(); else renderTotal();
+  });
+  root.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cart-remove]");
+    if (!b) return;
+    const id = b.dataset.cartRemove;
+    setCart(getCart().filter((x) => x !== id));
+    const next = root.querySelector("[data-cart-remove]") || root.querySelector("#o-cart");
+    if (next) next.focus && next.focus({ preventScroll: true });
+  });
 
   form.addEventListener("change", (e) => {
     const t = e.target;
-    if (t.name === "product") { st.id = t.value; renderInfo(); if (st.receive === "delivery") updateDelivery(); else renderTotal(); }
-    else if (t.name === "receive") {
+    if (t.name === "receive") {
       st.receive = t.value;
       root.querySelector("#o-delivery").hidden = st.receive !== "delivery";
       if (st.receive === "delivery") updateDelivery(); else renderTotal();
@@ -162,7 +201,7 @@ async function init(root) {
     const errs = [];
     form.querySelectorAll("[aria-invalid]").forEach((x) => x.removeAttribute("aria-invalid"));
     const bad = (node, msg) => { errs.push({ node, msg }); if (node && node.setAttribute) node.setAttribute("aria-invalid", "true"); };
-    if (!item()) bad(el.product, "商品を選んでください。");
+    if (!st.items.length) bad(submitBtn, "カートに商品を入れてください。");
     if (st.receive === "delivery") {
       if (!D.normalizeZip(el.zip.value)) bad(el.zip, "お届け先の郵便番号を7桁で入れてください。");
       if (!el.address.value.trim()) bad(el.address, "お届け先の住所を入れてください。");
@@ -186,17 +225,17 @@ async function init(root) {
   }
 
   async function payload() {
-    const it = item();
     const t = totalNow();
     const zip = st.receive === "delivery" ? toHalf(el.zip.value).trim() : "";
     return {
       kind: "shop",
       form: "shop",
-      item_id: it.id,
-      item_name: it.name,
-      goods_price: t.goods,
+      items: st.items.map((it) => ({ id: it.id, price: S.shopPrice(it).price })),
+      count: t.count,
+      goods: t.goods,
+      pending: t.pending,
       receive: st.receive,
-      delivery: st.receive === "delivery" && st.dq ? { zip: st.dq.zip, km: st.dq.km, band: st.dq.band, fee: st.dq.fee, consult: st.dq.consult, near_boundary: st.dq.near_boundary } : null,
+      delivery: st.receive === "delivery" && st.dq ? { zip: st.dq.zip, km: st.dq.km, band: st.dq.band, fee: st.dq.fee, consult: st.dq.consult, near_boundary: st.dq.near_boundary, free_shipping: !!st.dq.free_shipping } : null,
       total: t.total,
       payment: el.payment.value,
       shop_updated: shop.updated,
@@ -221,18 +260,21 @@ async function init(root) {
   const confirmBox = root.querySelector("#o-confirm");
   const doneBox = root.querySelector("#o-done");
   let current = null;
+  let currentItems = [];
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!validate()) return;
     current = await payload();
+    currentItems = st.items.slice();
     const p = current;
+    const t = totalNow();
     const rows = [
-      ["商品", p.item_name],
-      ["商品代", p.goods_price === null ? "確認中" : yen(p.goods_price) + "（税込）"],
+      ["点数", p.count + "点"],
+      ["商品代", S.cartGoodsText(t) + "（税込）"],
       ["受け取り方法", S.RECEIVE[p.receive]],
-      ...(p.receive === "delivery" ? [["お届け先", "〒" + p.customer.zip + " " + p.customer.address], ["配送料", p.delivery ? D.deliveryFeeText(p.delivery) + (p.delivery.band ? "（" + p.delivery.band + "）" : "") : "要相談"]] : []),
-      ["お支払いの目安", p.total === null ? "要相談（担当者からご連絡します）" : yen(p.total) + "（受け取り時）"],
+      ...(p.receive === "delivery" ? [["お届け先", "〒" + p.customer.zip + " " + p.customer.address], ["配送料（1回分）", p.delivery ? D.deliveryFeeText(p.delivery) + (p.delivery.band ? "（" + p.delivery.band + "）" : "") : "要相談"]] : []),
+      ["お支払いの目安", p.total === null ? S.cartTotalText(t) + "（担当者からご連絡します）" : yen(p.total) + "（受け取り時）"],
       ["お支払い方法", S.SHOP_PAYMENTS[p.payment]],
       ["お名前", p.customer.name],
       ["メールアドレス", p.customer.email],
@@ -243,6 +285,8 @@ async function init(root) {
     ];
     const ready = !!CONFIG.GAS_URL;
     confirmBox.innerHTML = `<h3 tabindex="-1" id="o-confirm-h">入力内容の確認</h3>
+<p class="cart-h">申し込む商品</p>
+<ul class="cart-list">${currentItems.map((it) => cartRow(it, "confirm")).join("")}</ul>
 <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
 <p class="callout-warn">${esc(shop.payment_note)}${esc(shop.hold_note)}</p>
 ${ready ? "" : '<p class="callout" id="o-not-ready"><b>フォームの送信は準備中です。</b>お手数ですが、この内容を LINE か電話でお伝えください。</p>'}
@@ -278,7 +322,8 @@ ${ready ? '<button type="button" class="btn btn-form" data-act="send">この内�
       if (!j.ok) throw new Error(j.error || "送信できませんでした");
       confirmBox.hidden = true;
       doneBox.hidden = false;
-      doneBox.innerHTML = `<div class="done" role="status"><p style="margin:0">お申し込みを受け付けました。</p>
+      setCart([]); // 受け付けたらカートを空にする
+      doneBox.innerHTML = `<div class="done" role="status"><p style="margin:0">お申し込み（${currentItems.length}点）を受け付けました。</p>
 ${j.id ? `<p>受付番号<span class="receipt">${esc(j.id)}</span></p>` : ""}
 <p>こちらからご連絡して、受け取りの日時を決めます。確認メールもお送りしました。</p>
 <p style="margin:0">${esc(shop.hold_note)}</p></div>`;

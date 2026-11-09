@@ -30,19 +30,114 @@ var ShopCore = (function () {
     return { list: item.price, price: price, sale: rate, undetermined: false };
   }
 
-  // お支払いの目安 ＝ 商品代 ＋ 配送料。delivery は店頭受け取りなら null、配送なら delivery-core の deliveryQuote の返り値
-  function orderTotal(item, receive, delivery) {
-    const p = shopPrice(item);
-    const isDelivery = receive === "delivery";
-    const fee = !isDelivery ? 0 : delivery && !delivery.consult && isNum(delivery.fee) ? delivery.fee : null;
-    const undetermined = p.undetermined || fee === null;
+  // ---------- カート（中古品は1点もの：数量なし。入っているか、いないか） ----------
+  const CART_MAX = 30;
+
+  // 保存した文字列（sessionStorage の JSON）→ id の配列。形の違う値・重複は捨てる
+  function parseCart(text) {
+    let a;
+    try { a = JSON.parse(text || "[]"); } catch (_) { return []; }
+    if (!Array.isArray(a)) return [];
+    const out = [];
+    for (let i = 0; i < a.length && out.length < CART_MAX; i++) {
+      const id = a[i];
+      if (typeof id === "string" && /^[a-z0-9-]{1,60}$/.test(id) && out.indexOf(id) < 0) out.push(id);
+    }
+    return out;
+  }
+
+  function inCart(ids, id) {
+    return (ids || []).indexOf(id) >= 0;
+  }
+
+  // 入れる（入っていれば外す）。新しい配列を返す
+  function toggleCart(ids, id) {
+    const list = (ids || []).slice();
+    const i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1);
+    else if (list.length < CART_MAX) list.push(id);
+    return list;
+  }
+
+  // id の並び → 申し込める商品。{ items: 販売中の商品（カートの順）, dropped: 見つからない・売切れ・取り置き中の id }
+  function resolveCart(shop, ids) {
+    const items = [];
+    const dropped = [];
+    (ids || []).forEach(function (id) {
+      const it = findItem(shop, id);
+      if (orderable(it) && items.indexOf(it) < 0) items.push(it);
+      else dropped.push(id);
+    });
+    return { items: items, dropped: dropped };
+  }
+
+  // カートの商品がすべて送料無料か（1点でも送料無料でなければ通常の配送料）
+  function cartFreeShipping(items) {
+    return !!items && items.length > 0 && items.every(function (it) { return !!it.free_shipping; });
+  }
+
+  // 配送料（1回の注文で1回）。店頭は 0、配送は delivery-core の deliveryQuote の返り値から。要相談は null
+  function cartDeliveryFee(receive, delivery) {
+    if (receive !== "delivery") return 0;
+    return delivery && !delivery.consult && isNum(delivery.fee) ? delivery.fee : null;
+  }
+
+  // お支払いの目安 ＝ 商品代の合計 ＋ 配送料（1回分）。deliveryFee は数値（店頭は 0）か null（要相談）
+  //   goods：価格の決まっている商品の合計、pending：価格が確認中の点数
+  //   known_total：分かっている分の合計（商品代＋配送料）、total：全部決まっているときだけ数値（それ以外 null）
+  function cartTotal(items, deliveryFee) {
+    const list = items || [];
+    let goods = 0;
+    let pending = 0;
+    list.forEach(function (it) {
+      const p = shopPrice(it);
+      if (p.undetermined) pending++;
+      else goods += p.price;
+    });
+    const fee = isNum(deliveryFee) ? deliveryFee : null;
+    const complete = list.length > 0 && pending === 0 && fee !== null;
+    const known = goods + (fee || 0);
     return {
-      goods: p.price,
+      count: list.length,
+      goods: goods,
+      pending: pending,
       delivery_fee: fee,
-      total: undetermined ? null : p.price + fee,
-      undetermined: undetermined,
-      note: p.undetermined ? "商品の価格は確認中です" : fee === null ? "配送料はご相談です" : ""
+      known_total: known,
+      total: complete ? known : null,
+      undetermined: !complete,
+      note: !list.length ? "" : pending ? "価格が確認中の商品は、担当者から金額をお伝えします" : fee === null ? "配送料はご相談です" : ""
     };
+  }
+
+  // 金額の書き方（¥12,345）。画面と GAS のメールで同じ書き方にする
+  function yenText(n) {
+    return "¥" + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  // 商品代の合計の言い方：「¥50,500」「¥50,500 ＋確認中の商品」「確認中の商品」
+  function cartGoodsText(t) {
+    if (!t || !t.count) return "";
+    if (!t.pending) return yenText(t.goods);
+    return t.goods > 0 ? yenText(t.goods) + " ＋確認中の商品" : "確認中の商品";
+  }
+
+  // お支払いの目安の言い方：「¥52,500」「¥52,500 ＋確認中の商品」「¥50,500 ＋配送料（要相談）」
+  function cartTotalText(t) {
+    if (!t || !t.count) return "";
+    if (t.total !== null) return yenText(t.total);
+    const extra = [];
+    if (t.pending) extra.push("確認中の商品");
+    if (t.delivery_fee === null) extra.push("配送料（要相談）");
+    return t.known_total > 0 ? yenText(t.known_total) + " ＋" + extra.join("・") : extra.join("・");
+  }
+
+  // 画面の [{id, price}] と、受付での再計算が一致するか（GAS の照合用）
+  function sameCart(shop, lines) {
+    if (!lines || !lines.length) return false;
+    return lines.every(function (x) {
+      const it = x && findItem(shop, x.id);
+      return !!it && sameGoods(it, x.price);
+    });
   }
 
   // 画面の商品代と、受付での再計算が一致するか（GAS の照合用）
@@ -51,5 +146,5 @@ var ShopCore = (function () {
     return p.undetermined ? goodsPrice === null || goodsPrice === undefined : p.price === goodsPrice;
   }
 
-  return { SHOP_STATUS: SHOP_STATUS, RECEIVE: RECEIVE, SHOP_PAYMENTS: SHOP_PAYMENTS, findItem: findItem, orderable: orderable, shopPrice: shopPrice, orderTotal: orderTotal, sameGoods: sameGoods };
+  return { SHOP_STATUS: SHOP_STATUS, RECEIVE: RECEIVE, SHOP_PAYMENTS: SHOP_PAYMENTS, findItem: findItem, orderable: orderable, shopPrice: shopPrice, CART_MAX: CART_MAX, parseCart: parseCart, inCart: inCart, toggleCart: toggleCart, resolveCart: resolveCart, cartFreeShipping: cartFreeShipping, cartDeliveryFee: cartDeliveryFee, cartTotal: cartTotal, yenText: yenText, cartGoodsText: cartGoodsText, cartTotalText: cartTotalText, sameCart: sameCart, sameGoods: sameGoods };
 })();

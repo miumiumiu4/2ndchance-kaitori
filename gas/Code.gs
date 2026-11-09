@@ -3,7 +3,8 @@
  * - doPost：フォームの JSON を受け取る。kind で振り分ける。
  *     （なし）       … 概算フォーム A・B・C。QuoteCore で再計算して画面の額と照合し、「受付」シートに追記、
  *                      オーナー宛メール、お客様宛の自動返信、メルマガ同意なら「メール会員」に upsert。
- *     shop           … 販売ページの注文。商品 id と商品代を Shop.gs（data/shop.json）と ShopCore で照合し、「受付」に追記・通知・自動返信。
+ *     shop           … 販売ページの注文（カート：items = [{id, price}]）。商品と商品代を Shop.gs（data/shop.json）と ShopCore で照合し、
+ *                      1注文1行で「受付」に追記（商品は「、」でつなぐ・点数の列）・通知・自動返信。配送料は1注文で1回分。
  *     delivery_log   … 配送料を計算しただけの記録（郵便番号・区分・日時だけ）を「配送料ログ」に追記。
  *   初回の受付で「集計」シート（式だけ）を ensureDashboard_() が作る。
  * - doGet ：action=quote で概算（読み取り専用・AI エージェント向け）、action=prices で価格表。
@@ -25,7 +26,8 @@ var HEADERS = [
   '第1希望', '第2希望', '第3希望', '写真(枚)', '写真(ファイル名)', '支払い方法', '要望',
   'メルマガ', '同意日時', '同意文(指紋)', '同日査定',
   '商品ID', '商品名', '商品代', '受け取り方法', '配送区分', '配送料', 'お支払い目安',
-  'ページ', '参照元', 'utm_source', 'utm_medium', 'utm_campaign', '端末', '言語', '画面'
+  'ページ', '参照元', 'utm_source', 'utm_medium', 'utm_campaign', '端末', '言語', '画面',
+  '点数'
 ];
 var MEMBER_SHEET = 'メール会員';
 var MEMBER_HEADERS = ['メール', 'お名前', '同意日時', '出典フォーム', '受付番号', '状態', '同意文(指紋)', '更新日時'];
@@ -140,6 +142,9 @@ function sheetWith_(ss, name, headers) {
     if (head !== headers.join('\t')) {
       sh.setName(name + '（旧 ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd-HHmm') + '）');
       sh = null;
+      // 「集計」の式は名前を変えた古いシートを指したままになるので消す（次の ensureDashboard_ が新しい列で作り直す）
+      var dash = name === DASHBOARD_SHEET ? null : ss.getSheetByName(DASHBOARD_SHEET);
+      if (dash) ss.deleteSheet(dash);
     }
   }
   if (!sh) sh = ss.insertSheet(name);
@@ -286,7 +291,8 @@ function ensureDashboard_(ss) {
   var blocks = [
     ['日別件数', '=QUERY({ARRAYFORMULA(LEFT(TO_TEXT(' + col('受付日時') + '),10))},"select Col1, count(Col1) where Col1 <> \'\' group by Col1 order by Col1 desc label Col1 \'日付\', count(Col1) \'件数\'",0)'],
     ['種類別', count('種類', '種類')],
-    ['商品別', count('商品名', '商品')],
+    // 商品ID は1注文で「、」区切り（カート）。分けてから数える
+    ['商品別（商品ID）', '=QUERY(FLATTEN(ARRAYFORMULA(IFERROR(SPLIT(' + col('商品ID') + ',"、")))),"select Col1, count(Col1) where Col1 <> \'\' group by Col1 order by count(Col1) desc label Col1 \'商品ID\', count(Col1) \'件数\'",0)'],
     ['郵便番号上3桁別（受付）', count('郵便番号(上3桁)', '上3桁')],
     ['流入元別（utm_source）', count('utm_source', '流入元')],
     ['参照元別', count('参照元', '参照元')],
@@ -303,13 +309,32 @@ function ensureDashboard_(ss) {
   sh.setFrozenRows(1);
 }
 
-// ---------- 販売ページの注文 ----------
+// ---------- 販売ページの注文（カート） ----------
+// items：[{id, price}]。1注文に何点でも。重複・見つからない・売切れ／取り置き中は断る
+function shopItems_(b) {
+  var list = (b && b.items) || [];
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i] && ShopCore.findItem(SHOP, list[i].id);
+    out.push(it || null);
+  }
+  return out;
+}
+
 function validateShop_(b) {
   if (!b || !b.customer) return '内容が足りません';
   if (!b.consent) return '個人情報の取扱いへの同意が必要です';
-  var it = ShopCore.findItem(SHOP, b.item_id);
-  if (!it) return '商品が見つかりません';
-  if (!ShopCore.orderable(it)) return 'この商品は' + (ShopCore.SHOP_STATUS[it.status] || '販売終了') + 'です';
+  if (!b.items || !b.items.length) return '商品を選んでください';
+  if (b.items.length > ShopCore.CART_MAX) return '一度に申し込める商品は' + ShopCore.CART_MAX + '点までです';
+  var items = shopItems_(b);
+  var seen = {};
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    if (!it) return '商品が見つかりません';
+    if (seen[it.id]) return '同じ商品が2回入っています';
+    seen[it.id] = true;
+    if (!ShopCore.orderable(it)) return it.name + 'は' + (ShopCore.SHOP_STATUS[it.status] || '販売終了') + 'です';
+  }
   if (!ShopCore.RECEIVE[b.receive]) return '受け取り方法を選んでください';
   if (!ShopCore.SHOP_PAYMENTS[b.payment]) return 'お支払い方法を選んでください';
   var c = b.customer;
@@ -321,61 +346,77 @@ function validateShop_(b) {
   return '';
 }
 
+// 注文の再計算（Shop.gs の価格で）。配送料は画面の計算（郵便番号の表は GAS に持たない）を1回分だけ使う。
+// 店頭受け取りは 0。送料無料（0円）と送ってきたのに、カートに送料無料でない商品があれば「照合 差あり」にする
+function shopRecalc_(b) {
+  var items = shopItems_(b);
+  var d = b.delivery || null;
+  var fee = ShopCore.cartDeliveryFee(b.receive, d);
+  var t = ShopCore.cartTotal(items, fee);
+  var freeOk = true;
+  if (b.receive === 'delivery' && d && !d.consult && d.free_shipping) freeOk = fee === 0 && ShopCore.cartFreeShipping(items);
+  var match = ShopCore.sameCart(SHOP, b.items) && b.shop_updated === SHOP.updated && (b.total == null ? t.total === null : b.total === t.total) && freeOk;
+  return { items: items, fee: fee, t: t, match: match };
+}
+
+function shopLine_(it) {
+  var p = ShopCore.shopPrice(it);
+  return it.name + '（' + it.id + '）' + (p.undetermined ? '価格は確認中' : ShopCore.yenText(p.price) + (p.sale ? '（' + Math.round(p.sale * 100) + '% OFF）' : ''));
+}
+
 function handleShop_(b, lock) {
   var err = validateShop_(b);
   if (err) return { ok: false, error: err };
   lock.waitLock(20000);
   var id = nextId_('S');
   if (!id) return { ok: false, error: '本日の受付数が上限に達しました。お電話でご連絡ください。' };
-  var it = ShopCore.findItem(SHOP, b.item_id);
-  var price = ShopCore.shopPrice(it);
-  // 商品代は Shop.gs と照合。配送料は画面の計算（郵便番号の表は GAS に持たない）をそのまま記録
-  var match = ShopCore.sameGoods(it, b.goods_price) && b.shop_updated === SHOP.updated;
+  var r = shopRecalc_(b);
+  var t = r.t;
   var d = b.delivery || null;
-  var fee = b.receive === 'delivery' ? (d && !d.consult && typeof d.fee === 'number' ? d.fee : null) : 0;
-  var total = price.undetermined || fee === null ? null : price.price + fee;
   var ss = book_();
   var o = commonCols_(id, b);
   o['種類'] = FORM_NAMES.shop;
-  o['概算(最小)'] = total === null ? '' : total;
-  o['概算(最大)'] = total === null ? '' : total;
-  o['要相談'] = total === null ? '要相談' : '';
-  o['照合'] = match ? '一致' : '差あり';
+  o['概算(最小)'] = t.total === null ? '' : t.total;
+  o['概算(最大)'] = t.total === null ? '' : t.total;
+  o['要相談'] = t.total === null ? '要相談' : '';
+  o['照合'] = r.match ? '一致' : '差あり';
   o['画面の概算'] = b.total == null ? '要相談' : b.total;
-  o['再計算の概算'] = total === null ? '要相談' : total;
+  o['再計算の概算'] = t.total === null ? '要相談' : t.total;
   o['価格表の版(画面)'] = b.shop_updated == null ? '(未設定)' : b.shop_updated;
   o['価格表の版(受付)'] = SHOP.updated == null ? '(未設定)' : SHOP.updated;
-  o['選んだ内容'] = '商品：' + it.name + '（' + it.id + '）';
-  o['商品ID'] = it.id;
-  o['商品名'] = it.name;
-  o['商品代'] = price.undetermined ? '確認中' : price.price;
+  o['選んだ内容'] = r.items.map(function (it) { return '商品：' + shopLine_(it); }).join('\n');
+  o['商品ID'] = r.items.map(function (it) { return it.id; }).join('、');
+  o['商品名'] = r.items.map(function (it) { return it.name; }).join('、');
+  o['商品代'] = t.pending ? ShopCore.cartGoodsText(t) : t.goods;
   o['受け取り方法'] = ShopCore.RECEIVE[b.receive];
-  o['配送区分'] = d ? (d.band || '') + (d.km != null ? '（約' + d.km + 'km）' : '') + (d.near_boundary ? '・境目' : '') : '';
-  o['配送料'] = b.receive === 'delivery' ? (fee === null ? '要相談' : fee) : '';
-  o['お支払い目安'] = total === null ? '要相談' : total;
+  o['配送区分'] = d ? (d.band || '') + (d.km != null ? '（約' + d.km + 'km）' : '') + (d.near_boundary ? '・境目' : '') + (d.free_shipping ? '・送料無料' : '') : '';
+  o['配送料'] = b.receive === 'delivery' ? (r.fee === null ? '要相談' : r.fee) : '';
+  o['お支払い目安'] = t.total === null ? ShopCore.cartTotalText(t) : t.total;
   o['支払い方法'] = ShopCore.SHOP_PAYMENTS[b.payment];
+  o['点数'] = t.count;
   sheetWith_(ss, SHEET_NAME, HEADERS).appendRow(rowOf_(o));
   if (b.newsletter && b.newsletter.opt_in) upsertMember_(ss, id, b);
   ensureDashboard_(ss);
   lock.releaseLock();
-  notifyShop_(id, b, it, price, fee, total, match);
-  replyShop_(id, b, it, price, fee, total);
+  notifyShop_(id, b, r);
+  replyShop_(id, b, r);
   return { ok: true, id: id };
 }
 
 function yenStr_(n) { return n === null ? '要相談' : n.toLocaleString() + '円'; }
 
-function notifyShop_(id, b, it, price, fee, total, match) {
+function notifyShop_(id, b, r) {
   var to = props_().getProperty('OWNER_EMAIL');
   if (!to) return;
   var c = b.customer;
+  var t = r.t;
   var lines = [
-    '【販売】新しい注文 ' + id,
-    '',
-    '商品：' + it.name + '（' + it.id + '）',
-    '商品代：' + (price.undetermined ? '確認中' : yenStr_(price.price)) + '　照合：' + (match ? '一致' : '差あり（画面 ' + b.goods_price + '・版 ' + b.shop_updated + '）'),
-    '受け取り：' + ShopCore.RECEIVE[b.receive] + (b.receive === 'delivery' ? '　配送料：' + yenStr_(fee) + (b.delivery ? '（' + (b.delivery.band || '') + '）' : '') : ''),
-    'お支払いの目安：' + yenStr_(total) + '（' + ShopCore.SHOP_PAYMENTS[b.payment] + '・受け取り時）',
+    '【販売】新しい注文 ' + id + '（' + t.count + '点）',
+    ''
+  ].concat(r.items.map(function (it) { return '・' + shopLine_(it); })).concat([
+    '商品代：' + ShopCore.cartGoodsText(t) + '　照合：' + (r.match ? '一致' : '差あり（画面 ' + JSON.stringify(b.items) + '・目安 ' + b.total + '・版 ' + b.shop_updated + '）'),
+    '受け取り：' + ShopCore.RECEIVE[b.receive] + (b.receive === 'delivery' ? '　配送料（1回分）：' + yenStr_(r.fee) + (b.delivery ? '（' + (b.delivery.band || '') + '）' : '') : ''),
+    'お支払いの目安：' + ShopCore.cartTotalText(t) + '（' + ShopCore.SHOP_PAYMENTS[b.payment] + '・受け取り時）',
     '',
     'お名前：' + c.name,
     'メール：' + c.email + '（お知らせ ' + (b.newsletter && b.newsletter.opt_in ? '同意' : '不同意') + '）',
@@ -385,22 +426,28 @@ function notifyShop_(id, b, it, price, fee, total, match) {
     metaLine_(b),
     '',
     '→ お客様へ連絡して受け取りの日時を決め、商品を取り置いてください（' + (SHOP.hold_note || '') + '）。'
-  ];
-  MailApp.sendEmail({ to: to, subject: '【注文 ' + id + '】' + it.name + ' ' + c.name + ' 様', body: lines.join('\n'), name: siteName_() });
+  ]);
+  var first = r.items[0] ? r.items[0].name : '';
+  MailApp.sendEmail({ to: to, subject: '【注文 ' + id + '】' + first + (t.count > 1 ? ' ほか' + (t.count - 1) + '点' : '') + ' ' + c.name + ' 様', body: lines.join('\n'), name: siteName_() });
 }
 
-function replyShop_(id, b, it, price, fee, total) {
+function replyShop_(id, b, r) {
   var c = b.customer;
+  var t = r.t;
   sendCustomer_(c.email, '【' + siteName_() + '】ご注文を受け付けました（' + id + '）', [
     c.name + ' 様',
     '',
     siteName_() + ' です。ご注文ありがとうございます。',
     '受付番号：' + id,
     '',
-    '商品：' + it.name,
-    '商品代：' + (price.undetermined ? '確認中（担当者からご連絡します）' : yenStr_(price.price) + '（税込）'),
-    '受け取り方法：' + ShopCore.RECEIVE[b.receive] + (b.receive === 'delivery' ? '（配送料 ' + (fee === null ? 'ご相談' : yenStr_(fee)) + '）' : ''),
-    'お支払いの目安：' + (total === null ? 'ご相談' : yenStr_(total)),
+    '商品（' + t.count + '点）：'
+  ].concat(r.items.map(function (it) {
+    var p = ShopCore.shopPrice(it);
+    return '・' + it.name + '　' + (p.undetermined ? '価格は確認中（担当者からご連絡します）' : ShopCore.yenText(p.price) + '（税込）');
+  })).concat([
+    '商品代：' + ShopCore.cartGoodsText(t),
+    '受け取り方法：' + ShopCore.RECEIVE[b.receive] + (b.receive === 'delivery' ? '（配送料 ' + (r.fee === null ? 'ご相談' : yenStr_(r.fee)) + '・1回分）' : ''),
+    'お支払いの目安：' + (t.total === null ? ShopCore.cartTotalText(t) + '（担当者からご連絡します）' : yenStr_(t.total)),
     'お支払い方法：' + ShopCore.SHOP_PAYMENTS[b.payment],
     '',
     '【ご案内】',
@@ -408,7 +455,7 @@ function replyShop_(id, b, it, price, fee, total) {
     '・' + (SHOP.hold_note || ''),
     '・このメールの時点では受け取りの日時は決まっていません。担当者からご連絡します。',
     '・配送料は距離の目安です。区分の境目に近い場合などは、お届けの前に確定します。'
-  ]);
+  ]));
 }
 
 function money_(form, q) {

@@ -335,6 +335,11 @@ function shopPriceHTML(it) {
 function shopMeta(it) {
   return [it.condition, isNum(it.year) ? it.year + "年" : "", it.size, it.free_shipping ? "送料無料（50km以内）" : ""].filter(Boolean).map(esc).join("・");
 }
+// カートのボタン（js/cart.js が押した状態を合わせる）。販売中でなければ押せない
+function cartButton(it) {
+  if (SC.orderable(it)) return `<button type="button" class="btn btn-ghost cart-btn" data-cart-add="${esc(it.id)}" aria-pressed="false">カートに入れる</button>`;
+  return `<button type="button" class="btn cart-btn" disabled aria-disabled="true">${esc(SC.SHOP_STATUS[it.status] || "販売終了")}</button>`;
+}
 function shopList(page, rel) {
   return `<ul class="shop-grid" style="list-style:none;padding:0;margin:0">${SHOP.items
     .map((it) => {
@@ -342,12 +347,13 @@ function shopList(page, rel) {
       return `<li class="card shop-card${it.status === "sold" ? " is-sold" : ""}"><a class="shop-img" href="${rel}${shopItemPath(it)}">${imgTag(thumbOf(it.photos[0]), rel, it.name, ' loading="lazy"')}${st}</a>
 <h3><a href="${rel}${shopItemPath(it)}">${esc(it.name)}</a></h3>
 <p class="price-tag">${shopPriceHTML(it)}</p>
-<p class="muted">${shopMeta(it)}</p></li>`;
+<p class="muted">${shopMeta(it)}</p>
+${cartButton(it)}</li>`;
     })
     .join("\n")}</ul>`;
 }
 function shopNote() {
-  return `<p class="callout">${esc(SHOP.payment_note)}<br>${esc(SHOP.hold_note)}価格は税込です。配送料は<a href="#order">注文フォーム</a>で郵便番号から目安が出ます（<a href="../price/#delivery">配送料の表</a>）。</p>`;
+  return `<p class="callout">${esc(SHOP.payment_note)}<br>${esc(SHOP.hold_note)}価格は税込です。いくつでもカートに入れて、まとめて申し込めます。配送料は1回の注文で1回分で、<a href="#order">注文フォーム</a>で郵便番号から目安が出ます（カートの商品がすべて送料無料なら50km以内は無料）（<a href="../price/#delivery">配送料の表</a>）。</p>`;
 }
 function shopExtras(page, rel) {
   return `<ul class="grid" style="list-style:none;padding:0;margin:0">${(SHOP.extras || [])
@@ -679,7 +685,8 @@ function shopItemPage(it) {
 <dl class="shop-spec">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
 ${it.note ? `<p>${esc(it.note)}</p>` : ""}
 <div class="btn-row" style="grid-template-columns:1fr">
-${ok ? `<a class="btn btn-form" href="${rel}shop/?item=${encodeURIComponent(it.id)}#order">この商品を申し込む</a>` : `<span class="btn btn-form is-disabled" aria-disabled="true">${esc(SC.SHOP_STATUS[it.status])}のため申し込めません</span>`}
+${cartButton(it)}
+${ok ? `<a class="btn btn-form" href="${rel}shop/?item=${encodeURIComponent(it.id)}#order">カートに入れて注文フォームへ</a>` : `<span class="btn btn-form is-disabled" aria-disabled="true">${esc(SC.SHOP_STATUS[it.status])}のため申し込めません</span>`}
 ${pay}
 </div>
 <p class="muted" style="margin-top:10px">${esc(SHOP.payment_note)}${esc(SHOP.hold_note)}</p>
@@ -691,7 +698,7 @@ ${pay}
 <p><a href="${rel}shop/">販売中の商品の一覧へ</a>　／　<a href="${rel}price/#delivery">配送料の表</a></p>
 ${contact(BLOG, rel)}
 </section>`;
-  return [pagePath + "index.html", shell({ pagePath, title: it.name, desc: `${it.name}。${p.undetermined ? "価格は確認中" : yen(p.price) + "（税込）"}。熊本県合志市のリサイクル店で販売中。`, graph: [business(), productLd(it)], main, form: "shop/#order", rss: false })];
+  return [pagePath + "index.html", shell({ pagePath, title: it.name, desc: `${it.name}。${p.undetermined ? "価格は確認中" : yen(p.price) + "（税込）"}。熊本県合志市のリサイクル店で販売中。`, graph: [business(), productLd(it)], main, form: "shop/#order", script: "js/cart.js", rss: false })];
 }
 function postCard(p, rel) {
   const tags = p.tags.length ? `<ul class="post-tags">${p.tags.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : "";

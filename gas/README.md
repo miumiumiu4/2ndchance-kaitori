@@ -40,10 +40,10 @@
 ## シート
 | シート | 中身 |
 |---|---|
-| `受付` | 1受付1行。全フォーム（A・B・C・販売）で同じ列順（下の表）。受付番号は概算フォームが `R…`、販売の注文が `S…`。販売は `照合` に商品代（`Shop.gs` との一致）、`概算(最小)`・`概算(最大)` にお支払いの目安（商品代＋配送料）が入る。見出しが今の列と違う古いシートは「受付（旧 日付）」に名前を変えて残し、新しく作る |
+| `受付` | 1受付1行。全フォーム（A・B・C・販売）で同じ列順（下の表）。受付番号は概算フォームが `R…`、販売の注文が `S…`。販売は1注文1行（カートの商品が何点でも）：`商品ID`・`商品名` は「、」でつなぎ、`点数` に点数、`商品代` は合計（確認中の商品があれば「¥… ＋確認中の商品」）、`配送料` は1注文で1回分。`照合` は各商品の価格（`Shop.gs` との一致）・お支払いの目安・商品表の版・送料無料の判定がそろえば「一致」、`概算(最小)`・`概算(最大)` にお支払いの目安（商品代の合計＋配送料）が入る。見出しが今の列と違う古いシートは「受付（旧 日付）」に名前を変えて残し、新しく作る（そのとき「集計」も消して作り直す） |
 | `メール会員` | メルマガに同意した人をメールで1行に upsert：`メール`・`お名前`・`同意日時`・`出典フォーム`・`受付番号`・`状態`（`active`／`unsub`）・`同意文(指紋)`・`更新日時`。「停止」の返信が来たら `状態` を手で `unsub` にする |
 | `配送料ログ` | 配送料を計算しただけの記録（名前なし）：`日時`・`郵便番号`・`郵便番号(上3桁)`・`区分` |
-| `集計` | 初回に `ensureDashboard_()` が式だけを置く：日別件数・種類別・商品別・郵便番号上3桁別・流入元別（utm_source）・参照元別・メルマガ同意率・配送料の計算の地域別。消すと次の受付で作り直される |
+| `集計` | 初回に `ensureDashboard_()` が式だけを置く：日別件数・種類別・商品別（`商品ID` を「、」で分けて数える）・郵便番号上3桁別・流入元別（utm_source）・参照元別・メルマガ同意率・配送料の計算の地域別。消すと次の受付で作り直される |
 
 ### `受付` の列（左から）
 | # | 列 |
@@ -93,6 +93,7 @@
 | 43 | `端末` |
 | 44 | `言語` |
 | 45 | `画面` |
+| 46 | `点数` |
 
 - `メルマガ` は `同意`／`不同意`、`同意文(指紋)` は同意文（`js/form-common.js` の `NEWSLETTER_TEXT`）の SHA-256 先頭8桁。文面を変えると指紋が変わる。
 - `ページ`〜`画面` は分析用（参照元はドメインだけ。名前・連絡先は入れない）。`郵便番号(上3桁)` は地域別の集計用。
@@ -107,7 +108,7 @@
 | kind | 中身 |
 |---|---|
 | （なし） | 概算フォーム A・B・C：`form`・`input`・`quote`・`prices_updated`・`customer`（`name_kana`・`tel`・`email`・`line_name`・`zip`・`address`）・`dates`・`photos`・`payment`・`note`・`newsletter`（`opt_in`・`at`・`text_hash`）・`postal3`・`meta`・`consent` |
-| `shop` | 販売の注文：`item_id`・`item_name`・`goods_price`・`receive`（`store`／`delivery`）・`delivery`（`zip`・`km`・`band`・`fee`・`consult`）・`total`・`payment`（`cash`／`card`／`paypay`）・`shop_updated`・`customer`（`name`・`tel`・`line_name`・`email`・`zip`・`address`）・`newsletter`・`postal3`・`meta`・`note`・`consent` |
+| `shop` | 販売の注文（カート）：`items`（`[{id, price}]`。`price` は画面の割引後の税込価格、確認中は `null`）・`count`（点数）・`goods`（価格の決まっている商品の合計）・`pending`（確認中の点数）・`receive`（`store`／`delivery`）・`delivery`（`zip`・`km`・`band`・`fee`・`consult`・`near_boundary`・`free_shipping`。配送料は1注文で1回分。カートが全部送料無料なら 50km 以内は 0）・`total`（全部決まっているときだけ数値、ほかは `null`）・`payment`（`cash`／`card`／`paypay`）・`shop_updated`・`customer`（`name`・`tel`・`line_name`・`email`・`zip`・`address`）・`newsletter`・`postal3`・`meta`・`note`・`consent` |
 | `delivery_log` | 配送料を計算しただけ：`zip`・`band`・`at`（名前・連絡先は送らない） |
 
 ## 動作確認

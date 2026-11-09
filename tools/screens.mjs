@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // 画面の確認（任意）：簡易サーバーで配信し、Playwright で 390px と 1280px を撮影して screens/ に保存。
-// あわせてフォームの動き（冷蔵庫2台の概算・仮の帯・タブ切替・相殺・確認画面・送信ボタンの「準備中」・固定バーの概算パネル）を確かめる。
+// あわせてフォームの動き（冷蔵庫2台の概算・仮の帯・タブ切替・相殺・確認画面・送信ボタンの「準備中」・固定バーの概算パネル）と、
+// 販売ページのカート（2点入れる・配送料1回分・外す・売切れは入れられない・確認画面）を確かめる。
 //   node tools/screens.mjs      （Playwright が入っている環境で）
 import http from "node:http";
 import fs from "node:fs";
@@ -218,47 +219,105 @@ try {
     await stickyRun(w, h, "kataduke/", fridgeB, w === 390 ? "form-b-sticky-390.png" : "", "フォームB（軽トラ＋冷蔵庫1台）", "¥0 〜 ¥12,000");
   }
 
-  // 販売ページ：一覧 → 商品ページ → 注文フォーム（配送・郵便番号 → 配送料 → お支払いの目安）
+  // 販売ページ：一覧でカートに2点（送料無料1・通常1）→ 商品ページでも同じカート → 注文フォーム（郵便番号 → 配送料1回分）
+  // → 1点外す（全部送料無料に戻る）→ 価格確認中の商品 → 確認画面 → 全部外すと送信できない。売切れは入れられない
   {
     const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP" });
     const pg = await c.newPage();
     pg.on("console", (m) => { if (m.type() === "error") errors.push(`shop ${m.text()}`); });
     pg.on("pageerror", (e) => errors.push(`shop ${e.message}`));
+    const badge = async () => ((await pg.isVisible("#cta-cart")) ? (await pg.textContent("#cta-cart")).trim() : "");
+    const txt = async (sel) => (await pg.textContent(sel)).trim();
     await pg.goto(BASE + "shop/", { waitUntil: "networkidle" });
+    await pg.waitForSelector("#o-cart");
     check("販売：商品カードが並ぶ", (await pg.locator(".shop-card").count()) >= 10);
     check("販売：売切れの帯", (await pg.locator(".shop-band-sold").count()) === 1);
     check("販売：画像が読み込まれる", await pg.evaluate(() => [...document.querySelectorAll(".shop-card img")].slice(0, 4).every((i) => i.complete && i.naturalWidth > 0)));
+    check("販売：カートが空なら「カートを見る」は出ず、送信ボタンは押せない", (await badge()) === "" && (await pg.isVisible("[data-cart-empty]")) && (await pg.locator("form.qform button[type=submit]").isDisabled()));
+    check("販売：空のカートの案内", (await txt("[data-cart-empty]")) === "商品一覧から「カートに入れる」を押してください");
+    const soldBtn = pg.locator(".shop-card.is-sold .cart-btn");
+    await soldBtn.click({ force: true });
+    check("販売：売切れの商品はカートに入れられない（ボタンは「売切れ」で押せない）", (await soldBtn.isDisabled()) && (await soldBtn.textContent()).trim() === "売切れ" && (await badge()) === "");
+    await pg.click('[data-cart-add="drum-washer"]');
+    await pg.click('[data-cart-add="industrial-fan"]');
+    check("販売：入れるとボタンが「カートから外す」に", (await txt('[data-cart-add="drum-washer"]')) === "カートから外す" && (await pg.getAttribute('[data-cart-add="industrial-fan"]', "aria-pressed")) === "true");
+    check("販売：固定バーの上に「カートを見る（2点）」", (await badge()) === "カートを見る（2点）");
+    check("販売：注文フォームに2行（写真・名前・価格・外す）", (await pg.locator("#o-cart .cart-row").count()) === 2 && (await pg.locator("#o-cart .cart-row img").count()) === 2 && (await pg.locator("#o-cart [data-cart-remove]").count()) === 2);
+    const imgW = await pg.evaluate(() => Math.round(document.querySelector("#o-cart .cart-row img").getBoundingClientRect().width));
+    check("販売：行の写真は小さい（64px）", imgW === 64, `${imgW}px`);
+    await pg.locator(".shop-card").first().screenshot({ path: path.join(ROOT, "screens", "shop-card-cart-390.png") });
+
+    // 商品ページ：同じカート（sessionStorage）を見て、バッジは一覧の注文フォームへ
+    await pg.goto(BASE + "shop/aqua-fridge-355/", { waitUntil: "networkidle" });
+    check("商品ページ：カートの点数が一覧と同じ（2点）", (await badge()) === "カートを見る（2点）");
+    check("商品ページ：カートに入れるボタン", (await txt('[data-cart-add="aqua-fridge-355"]')) === "カートに入れる");
+    const href = await pg.getAttribute("#cta-cart", "href");
+    check("商品ページ：「カートを見る」は /shop/#order へ", /\/shop\/#order$/.test(href), href);
     await pg.goto(BASE + "shop/electric-heater/", { waitUntil: "networkidle" });
-    check("販売：売切れの商品は申し込めない", (await pg.locator("text=売切れのため申し込めません").count()) === 1);
-    await pg.goto(BASE + "shop/drum-washer/", { waitUntil: "networkidle" });
-    await pg.click("text=この商品を申し込む");
-    await pg.waitForSelector("#o-item");
-    check("販売：商品ページから選択済みで注文フォームへ", (await pg.inputValue("#o-item")) === "drum-washer");
-    check("販売：店頭受け取りならお支払いの目安は商品代", (await pg.textContent("[data-total]")).trim() === "¥45,000");
+    check("商品ページ：売切れは申し込めず、カートのボタンも押せない", (await pg.locator("text=売切れのため申し込めません").count()) === 1 && (await pg.locator(".shop-detail .cart-btn").isDisabled()));
+    await pg.click("#cta-cart");
+    await pg.waitForSelector("#o-cart .cart-row");
+    check("商品ページのバッジから注文フォームへ（カート2点のまま）", pg.url().endsWith("/shop/#order") && (await pg.locator("#o-cart .cart-row").count()) === 2);
+    check("販売：商品代の合計（2点）", (await txt("[data-goods]")) === "¥50,500");
+    check("販売：店頭受け取りならお支払いの目安は商品代の合計", (await txt("[data-total]")) === "¥50,500");
+
+    // 配送：送料無料でない商品があるので、通常の配送料を1回分
     await pg.click('label.choice:has(input[value="delivery"])');
-    await pg.fill("#o-zip", "861-1112");
-    await pg.waitForSelector("[data-delivery-fee]");
-    check("販売：送料無料の商品・店の近く → 配送料 無料", (await pg.textContent("[data-delivery-fee]")).trim() === "無料");
-    await pg.selectOption("#o-item", "industrial-fan");
-    await pg.fill("#o-zip", "");
     await pg.fill("#o-zip", "8600806");
     await pg.waitForFunction(() => document.querySelector("[data-delivery-fee]") && /¥/.test(document.querySelector("[data-delivery-fee]").textContent));
-    const fee = (await pg.textContent("[data-delivery-fee]")).trim();
-    const total = (await pg.textContent("[data-total]")).trim();
-    const want = "¥" + (5500 + Number(fee.replace(/[^0-9]/g, ""))).toLocaleString("ja-JP");
-    check("販売：熊本市中心部 → 配送料が出て、商品代＋配送料＝お支払いの目安", total === want, `配送料 ${fee}／目安 ${total}`);
+    const fee = Number((await txt("[data-delivery-fee]")).replace(/[^0-9]/g, ""));
+    const total2 = await txt("[data-total]");
+    check("販売：2点（送料無料1・通常1）→ 商品代＋配送料1回分", fee > 0 && total2 === "¥" + (50500 + fee).toLocaleString("ja-JP"), `配送料 ¥${fee}／目安 ${total2}`);
+    check("販売：内訳に「1回分」と送料無料でない商品の案内", (await txt("#o-total")).includes("（1回分）") && (await txt("#o-total")).includes("送料無料でない商品が入っているため"));
+    await pg.locator("#shop-order").screenshot({ path: path.join(ROOT, "screens", "shop-cart-390.png") });
+
+    // 1点外す → 全部送料無料 → 配送料は無料
+    await pg.click('[data-cart-remove="industrial-fan"]');
+    await pg.waitForFunction(() => document.querySelectorAll("#o-cart .cart-row").length === 1);
+    await pg.waitForFunction(() => document.querySelector("[data-delivery-fee]").textContent.trim() === "無料");
+    check("販売：外すと1行・バッジ1点・一覧のボタンも戻る", (await badge()) === "カートを見る（1点）" && (await txt('[data-cart-add="industrial-fan"]')) === "カートに入れる");
+    check("販売：送料無料の商品だけ → 配送料 無料、目安は商品代", (await txt("[data-total]")) === "¥45,000");
+
+    // 価格が確認中の商品を足す → 「＋確認中の商品」
+    await pg.click('[data-cart-add="cupboard-white"]');
+    await pg.waitForFunction(() => document.querySelectorAll("#o-cart .cart-row").length === 2 && /¥/.test(document.querySelector("[data-delivery-fee]").textContent));
+    const fee3 = Number((await txt("[data-delivery-fee]")).replace(/[^0-9]/g, ""));
+    check("販売：確認中の商品 → 合計は「＋確認中の商品」", (await txt("[data-goods]")) === "¥45,000 ＋確認中の商品" && (await txt("[data-total]")) === "¥" + (45000 + fee3).toLocaleString("ja-JP") + " ＋確認中の商品", await txt("[data-total]"));
+
     await pg.fill("#o-addr", "熊本県熊本市（試験）");
     await pg.fill("#o-name", "試験 太郎");
     await pg.fill("#o-email", "test" + "@" + "example.invalid");
     await pg.fill("#o-line", "しけん");
     await pg.check("#o-consent");
-    await pg.locator("#shop-order").screenshot({ path: path.join(ROOT, "screens", "shop-order-390.png") });
+    // 最下部で送信ボタン・フッターが固定バー（カートのバッジつき）に隠れない
+    await pg.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await pg.waitForTimeout(150);
+    const gap = await pg.evaluate(() => document.querySelector(".cta-bar").getBoundingClientRect().top - document.querySelector("form.qform button[type=submit]").getBoundingClientRect().bottom);
+    const footGap = await pg.evaluate(() => document.querySelector(".cta-bar").getBoundingClientRect().top - document.querySelector(".site-footer").getBoundingClientRect().bottom);
+    check("販売 390px：最下部で送信ボタン・フッターが固定バーに隠れない", gap > 0 && footGap >= 0, `ボタンとの間 ${Math.round(gap)}px／フッターとの間 ${Math.round(footGap)}px`);
     await pg.click("form.qform button[type=submit]");
     await pg.waitForSelector("#o-confirm:not([hidden])");
     const ct = await pg.textContent("#o-confirm");
-    check("販売：確認画面に商品・配送料・お支払いの目安", ct.includes("工業用扇風機") && ct.includes(total) && ct.includes("受け取り時"));
+    check("販売：確認画面に写真つきの商品の行（2点）", (await pg.locator("#o-confirm .cart-row img").count()) === 2 && ct.includes("ドラム式洗濯乾燥機") && ct.includes("食器棚"));
+    check("販売：確認画面に点数・配送料・お支払いの目安・受け取り時", ct.includes("2点") && ct.includes("配送料（1回分）") && ct.includes("＋確認中の商品") && ct.includes("お支払いは受け取り時"));
+    check("販売：決済リンクが空ならカード払いのボタンは出ない", (await pg.locator("#o-confirm .cart-pay").count()) === 0);
     check("販売：GAS_URL 空なら送信は準備中", await pg.locator("#o-confirm button.btn-form").isDisabled());
+    await pg.screenshot({ path: path.join(ROOT, "screens", "shop-confirm-390.png"), fullPage: false });
     check("販売 390px：横スクロールなし", (await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    await pg.click('#o-confirm [data-act="back"]');
+    await pg.click('[data-cart-remove="drum-washer"]');
+    await pg.click('[data-cart-remove="cupboard-white"]');
+    await pg.waitForSelector("[data-cart-empty]");
+    check("販売：全部外すと空の案内・送信ボタンは押せない・バッジは消える", (await pg.locator("form.qform button[type=submit]").isDisabled()) && (await badge()) === "");
+
+    // 商品ページの「カートに入れて注文フォームへ」（?item=）→ カートに入り、URL から ?item は消える
+    await pg.goto(BASE + "shop/rice-cooker-2024/", { waitUntil: "networkidle" });
+    await pg.click("text=カートに入れて注文フォームへ");
+    await pg.waitForSelector("#o-cart .cart-row");
+    check("販売：商品ページから「カートに入れて注文フォームへ」", (await pg.locator("#o-cart .cart-row").count()) === 1 && (await txt("[data-goods]")) === "¥8,200" && !pg.url().includes("?item"));
+    await pg.reload({ waitUntil: "networkidle" });
+    await pg.waitForSelector("#o-cart .cart-row");
+    check("販売：再読み込みしてもカートは1点のまま", (await pg.locator("#o-cart .cart-row").count()) === 1);
     await c.close();
   }
 

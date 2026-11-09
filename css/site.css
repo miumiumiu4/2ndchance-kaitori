@@ -283,3 +283,26 @@ details.faq div::before { content: "A. "; color: var(--accent); font-weight: 800
 .shop-spec dd { margin: 0; }
 .order-total { font-size: 1.2rem; font-weight: 900; }
 .order-total b { color: var(--accent); }
+/* カート（js/cart.js・js/shop.js） */
+.cart-btn { width: 100%; min-height: 44px; margin-top: auto; padding: 6px 8px; font-size: .95rem; }
+.shop-detail .cart-btn { min-height: 52px; font-size: 1.05rem; }
+.cart-btn[aria-pressed="true"] { background: var(--green); color: #fff; }
+.cart-btn[aria-pressed="true"]::before { content: "✓"; }
+body.has-cta-cart { --cta-cart-h: 50px; padding-bottom: calc(var(--cta-h) + var(--cta-cart-h) + 24px + env(safe-area-inset-bottom)); }
+html:has(body.has-cta-cart) { scroll-padding-bottom: calc(var(--cta-h) + 50px + 16px + env(safe-area-inset-bottom)); }
+.cta-cart { display: flex; align-items: center; justify-content: center; max-width: 720px; min-height: 44px; margin: 0 auto 6px; padding: 4px 8px; border: 2px solid var(--green); border-radius: 10px; background: var(--green-soft); color: var(--green-dark); font-weight: 800; font-size: 16px; text-decoration: none; }
+.cta-cart[hidden] { display: none; }
+.cta-cart:hover { color: var(--green-dark); filter: brightness(.98); }
+.cart-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cart-row { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.cart-row img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: var(--bg); }
+.cart-info { display: flex; flex-direction: column; min-width: 0; line-height: 1.4; }
+.cart-info a { color: var(--ink); font-weight: 800; overflow-wrap: anywhere; }
+.cart-price { color: var(--accent); font-weight: 900; }
+.cart-price s { color: var(--muted); font-weight: 700; }
+.cart-free { font-size: .85rem; color: var(--muted); }
+.cart-remove { min-height: 44px; padding: 6px 12px; font-size: .95rem; }
+.cart-pay { grid-column: 1 / -1; min-height: 44px; font-size: .95rem; }
+.cart-sum { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 10px 0 0; padding: 8px 4px 0; border-top: 2px solid var(--green-soft); font-weight: 800; }
+.cart-sum b { color: var(--accent); font-size: 1.15rem; }
+.cart-h { font-weight: 900; margin: 12px 0 6px; }
