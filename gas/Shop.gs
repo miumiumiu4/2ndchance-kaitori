@@ -1,0 +1,229 @@
+// 自動生成：tools/build.mjs が data/shop.json から作る。手で直さない。
+// 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。
+var SHOP = {
+  "_note": "販売中の商品（店頭・配送）。price は税込の円、null は「価格は確認中」。sale は割引率（0.1 = 10% OFF）。status は available（販売中）／reserved（取り置き中）／sold（売切れ）。payment_link に外部の決済ページの URL を入れた商品だけ「カードで支払う」ボタンが出る（今は全て空）。写真は tools/photos.py が作る。",
+  "updated": "2026-11-09",
+  "tax": "included",
+  "hold_days": 3,
+  "hold_note": "お取り置きは3日間（仮）です。",
+  "payment_note": "お支払いは受け取り時（店頭または配送時）に、現金・クレジットカード・PayPay でお願いします。ネット決済は準備中です。",
+  "extras": [
+    {
+      "id": "clothes",
+      "title": "衣類も販売しています（店頭 10% OFF）",
+      "photo": "assets/shop/clothes-rack.jpg",
+      "note": "冬物のコートや婦人服など。店頭でご覧ください（このページからの注文は受けていません）。"
+    }
+  ],
+  "items": [
+    {
+      "id": "aqua-fridge-355",
+      "name": "AQUA 冷蔵庫 355L（2024年）",
+      "category": "家電",
+      "price": 65000,
+      "year": 2024,
+      "condition": "中古",
+      "size": "355L・4ドア",
+      "free_shipping": true,
+      "status": "available",
+      "photos": [
+        "assets/shop/aqua-fridge-355.jpg"
+      ],
+      "note": "2024年製。送料無料（店から50km以内）。",
+      "payment_link": ""
+    },
+    {
+      "id": "drum-washer",
+      "name": "ドラム式洗濯乾燥機（BIG DRUM）",
+      "category": "家電",
+      "price": 45000,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": true,
+      "status": "available",
+      "photos": [
+        "assets/shop/drum-washer.jpg"
+      ],
+      "note": "送料無料（店から50km以内）。",
+      "payment_link": ""
+    },
+    {
+      "id": "rice-cooker-2024",
+      "name": "炊飯器 5合炊き（新品・2024年）",
+      "category": "家電",
+      "price": 8200,
+      "year": 2024,
+      "condition": "新品",
+      "size": "5合炊き",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/rice-cooker-2024.jpg"
+      ],
+      "note": "新品（箱入り）。",
+      "payment_link": ""
+    },
+    {
+      "id": "industrial-fan",
+      "name": "工業用扇風機（三脚スタンド）",
+      "category": "家電",
+      "price": 5500,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/industrial-fan.jpg"
+      ],
+      "note": "",
+      "payment_link": ""
+    },
+    {
+      "id": "citizen-wall-clock",
+      "name": "CITIZEN 電波掛け時計（振り子付き）",
+      "category": "インテリア",
+      "price": 3300,
+      "sale": 0.1,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/citizen-wall-clock.jpg"
+      ],
+      "note": "10% OFF の対象です。",
+      "payment_link": ""
+    },
+    {
+      "id": "wood-statue",
+      "name": "木彫りの女性像",
+      "category": "インテリア",
+      "price": 5650,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/wood-statue.jpg"
+      ],
+      "note": "",
+      "payment_link": ""
+    },
+    {
+      "id": "bronze-vase",
+      "name": "青銅風の花器・オブジェ",
+      "category": "インテリア",
+      "price": 2800,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/bronze-vase.jpg"
+      ],
+      "note": "",
+      "payment_link": ""
+    },
+    {
+      "id": "figurine-children",
+      "name": "陶器の人形（花を持つ少女と少年）",
+      "category": "インテリア",
+      "price": 2280,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/figurine-children.jpg"
+      ],
+      "note": "台座に銘板があります。",
+      "payment_link": ""
+    },
+    {
+      "id": "cupboard-white",
+      "name": "食器棚（白・ガラス扉・引き出し3段）",
+      "category": "家具",
+      "price": null,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/cupboard-white.jpg"
+      ],
+      "note": "価格は確認中です。お問い合わせください。",
+      "payment_link": ""
+    },
+    {
+      "id": "dresser-mirror",
+      "name": "ドレッサー（鏡台・スツール付き）",
+      "category": "家具",
+      "price": null,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/dresser-mirror.jpg"
+      ],
+      "note": "価格は確認中です。",
+      "payment_link": ""
+    },
+    {
+      "id": "fitness-bike",
+      "name": "フィットネスバイク（折りたたみ）",
+      "category": "その他",
+      "price": null,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/fitness-bike.jpg"
+      ],
+      "note": "価格は確認中です。",
+      "payment_link": ""
+    },
+    {
+      "id": "acoustic-guitar",
+      "name": "アコースティックギター（スタンド付き）",
+      "category": "その他",
+      "price": null,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/acoustic-guitar.jpg"
+      ],
+      "note": "価格は確認中です。",
+      "payment_link": ""
+    },
+    {
+      "id": "electric-heater",
+      "name": "電気ストーブ",
+      "category": "家電",
+      "price": null,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "sold",
+      "photos": [
+        "assets/shop/electric-heater.jpg"
+      ],
+      "note": "売切れました。次回の入荷をお待ちください。",
+      "payment_link": ""
+    }
+  ]
+};

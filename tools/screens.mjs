@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml" };
+const TYPES = { ".jpg": "image/jpeg", ".png": "image/png", ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml" };
 
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
@@ -32,7 +32,7 @@ const browser = await chromium.launch();
 const errors = [];
 try {
   fs.mkdirSync(path.join(ROOT, "screens"), { recursive: true });
-  const shots = [["top", ""], ["kaitori", "kaitori/"], ["kataduke", "kataduke/"], ["price", "price/"], ["seiri", "seiri/"], ["flow", "flow/"]];
+  const shots = [["top", ""], ["kaitori", "kaitori/"], ["kataduke", "kataduke/"], ["price", "price/"], ["seiri", "seiri/"], ["flow", "flow/"], ["shop", "shop/"], ["shop-item", "shop/aqua-fridge-355/"]];
   for (const w of [390, 1280]) {
     const ctx = await browser.newContext({ viewport: { width: w, height: w === 390 ? 844 : 900 }, deviceScaleFactor: 1, locale: "ja-JP" });
     const page = await ctx.newPage();
@@ -216,6 +216,50 @@ try {
   for (const [w, h] of [[390, 844], [1280, 900]]) {
     await stickyRun(w, h, "kaitori/", fridgeA, w === 390 ? "form-a-sticky-390.png" : "", "フォームA（冷蔵庫1台）", "0円 〜 ¥12,000");
     await stickyRun(w, h, "kataduke/", fridgeB, w === 390 ? "form-b-sticky-390.png" : "", "フォームB（軽トラ＋冷蔵庫1台）", "¥0 〜 ¥12,000");
+  }
+
+  // 販売ページ：一覧 → 商品ページ → 注文フォーム（配送・郵便番号 → 配送料 → お支払いの目安）
+  {
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP" });
+    const pg = await c.newPage();
+    pg.on("console", (m) => { if (m.type() === "error") errors.push(`shop ${m.text()}`); });
+    pg.on("pageerror", (e) => errors.push(`shop ${e.message}`));
+    await pg.goto(BASE + "shop/", { waitUntil: "networkidle" });
+    check("販売：商品カードが並ぶ", (await pg.locator(".shop-card").count()) >= 10);
+    check("販売：売切れの帯", (await pg.locator(".shop-band-sold").count()) === 1);
+    check("販売：画像が読み込まれる", await pg.evaluate(() => [...document.querySelectorAll(".shop-card img")].slice(0, 4).every((i) => i.complete && i.naturalWidth > 0)));
+    await pg.goto(BASE + "shop/electric-heater/", { waitUntil: "networkidle" });
+    check("販売：売切れの商品は申し込めない", (await pg.locator("text=売切れのため申し込めません").count()) === 1);
+    await pg.goto(BASE + "shop/drum-washer/", { waitUntil: "networkidle" });
+    await pg.click("text=この商品を申し込む");
+    await pg.waitForSelector("#o-item");
+    check("販売：商品ページから選択済みで注文フォームへ", (await pg.inputValue("#o-item")) === "drum-washer");
+    check("販売：店頭受け取りならお支払いの目安は商品代", (await pg.textContent("[data-total]")).trim() === "¥45,000");
+    await pg.click('label.choice:has(input[value="delivery"])');
+    await pg.fill("#o-zip", "861-1112");
+    await pg.waitForSelector("[data-delivery-fee]");
+    check("販売：送料無料の商品・店の近く → 配送料 無料", (await pg.textContent("[data-delivery-fee]")).trim() === "無料");
+    await pg.selectOption("#o-item", "industrial-fan");
+    await pg.fill("#o-zip", "");
+    await pg.fill("#o-zip", "8600806");
+    await pg.waitForFunction(() => document.querySelector("[data-delivery-fee]") && /¥/.test(document.querySelector("[data-delivery-fee]").textContent));
+    const fee = (await pg.textContent("[data-delivery-fee]")).trim();
+    const total = (await pg.textContent("[data-total]")).trim();
+    const want = "¥" + (5500 + Number(fee.replace(/[^0-9]/g, ""))).toLocaleString("ja-JP");
+    check("販売：熊本市中心部 → 配送料が出て、商品代＋配送料＝お支払いの目安", total === want, `配送料 ${fee}／目安 ${total}`);
+    await pg.fill("#o-addr", "熊本県熊本市（試験）");
+    await pg.fill("#o-name", "試験 太郎");
+    await pg.fill("#o-email", "test" + "@" + "example.invalid");
+    await pg.fill("#o-line", "しけん");
+    await pg.check("#o-consent");
+    await pg.locator("#shop-order").screenshot({ path: path.join(ROOT, "screens", "shop-order-390.png") });
+    await pg.click("form.qform button[type=submit]");
+    await pg.waitForSelector("#o-confirm:not([hidden])");
+    const ct = await pg.textContent("#o-confirm");
+    check("販売：確認画面に商品・配送料・お支払いの目安", ct.includes("工業用扇風機") && ct.includes(total) && ct.includes("受け取り時"));
+    check("販売：GAS_URL 空なら送信は準備中", await pg.locator("#o-confirm button.btn-form").isDisabled());
+    check("販売 390px：横スクロールなし", (await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    await c.close();
   }
 
   check("コンソールエラーなし", errors.length === 0, errors.join(" | "));

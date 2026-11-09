@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PAGES = ["index.html", "kaitori/index.html", "kataduke/index.html", "seiri/index.html", "flow/index.html", "price/index.html", "privacy/index.html"];
+const PAGES = ["index.html", "kaitori/index.html", "kataduke/index.html", "seiri/index.html", "flow/index.html", "price/index.html", "privacy/index.html", "shop/index.html"];
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 
 test("build の生成物が最新（node tools/build.mjs --check）", () => {
@@ -22,7 +22,8 @@ test("各ページの JSON-LD が読めて、LocalBusiness と Service がある
     const ld = JSON.parse(m[1]);
     const types = ld["@graph"].map((x) => x["@type"]);
     assert.ok(types.includes("LocalBusiness"), p);
-    if (p !== "privacy/index.html") assert.ok(types.includes("Service"), p);
+    if (p !== "privacy/index.html" && p !== "shop/index.html") assert.ok(types.includes("Service"), p);
+    if (p === "shop/index.html") assert.ok(types.includes("ItemList"), p);
     if (p === "flow/index.html") assert.ok(types.includes("FAQPage"));
     if (p === "price/index.html") {
       const cat = ld["@graph"].find((x) => x["@type"] === "OfferCatalog");

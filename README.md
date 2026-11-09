@@ -11,6 +11,7 @@
 | `seiri/` | 遺品整理・生前整理・ゴミ屋敷・空き家（申込は `kataduke/#form-c`） |
 | `flow/` | 流れ・必要なもの（本人確認）・お金の受け取り方・FAQ |
 | `price/` | 料金目安・買取実績 |
+| `shop/` | 販売中の商品の一覧と**注文フォーム**（`#order`）。商品ごとのページ `shop/<id>/` は build が `data/shop.json` から作る（コミットする） |
 | `privacy/` | 個人情報の取扱い（**仮**。オーナー確定前） |
 | `404.html` | 見つからないページ |
 | `css/site.css` | 見た目（モバイル優先・文字大きめ・コントラスト 4.5 以上） |
@@ -18,6 +19,7 @@
 | `tools/aircon.mjs` | ありがとうエアコンの予約フォームへのリンク（紹介番号のパラメータ）を作る純粋関数 |
 | `js/quote-core.js` | 概算の式（純粋関数）。画面・GAS・AI 向け API が同じ式を使う |
 | `js/form.js` | フォームの画面（入力→確認→送信→受付番号）。フォームが見えたら固定バーの上段に概算パネル |
+| `js/shop.js`・`js/shop-core.js` | 注文フォームの画面と、商品代（割引）・お支払いの目安（商品代＋配送料）の式。GAS は `gas/ShopCore.gs` で照合 |
 | `js/form-common.js` | フォーム共通：メールの形・メルマガ同意の記録（同意文のハッシュ先頭8桁）・分析用の `meta`（ページ・参照元・utm・端末・言語・画面）と郵便番号の上3桁 |
 | `js/delivery-core.js` | 郵便番号 → 配送料の式（純粋関数）。店からの直線距離 × 1.3 を道のりの目安にして `delivery_tiers` に当てはめる |
 | `data/postal/` | 郵便番号（7桁）→ 緯度経度の表（上3桁ごと）。`tools/build-postal.mjs` が作る生成物（コミットする） |
@@ -108,6 +110,11 @@ npm test               # 全部緑になってからコミット
 - GitHub Pages のままドメインだけ変える：リポジトリの直下に `CNAME`（中身はドメイン名1行）を置き、DNS を設定する（DNS はオーナー判断）。`CFG_SITE_URL` を新しい URL にする。
 - 自社サーバーに置く：`node tools/build.mjs --out _site`（`CFG_*` を環境変数で渡す）で作った `_site/` の中身をそのまま置く。
 - 404 ページはプロジェクトサイト（`/リポジトリ名/`）を想定して入口を推し量る。独自ドメインの直下なら `/` を使う。
+
+## 販売ページ（段階1：注文受付のみ）
+- 商品は `data/shop.json`（`id`・`name`・`price`（税込、`null`＝確認中）・`sale`（割引率）・`year`・`condition`・`size`・`free_shipping`・`status`（`available`／`reserved`／`sold`）・`photos`・`note`・`payment_link`）。写真は `tools/photos.py` で作る（`assets/shop/README.md`）。
+- 入れ替え・売切れは `data/shop.json` を直して `node tools/build.mjs` → `npm test` → push。GAS の `Shop.gs` も更新する（`gas/README.md`）。
+- お支払いは受け取り時（現金・クレジットカード・PayPay）。取り置きは3日（仮）。**ネット決済は後から**：外部の決済ページ（PayPal・Stripe Payment Links など。業者の選定と契約はオーナー判断）の URL を商品の `payment_link` に入れると、その商品にだけ「カードで支払う（外部サイト）」ボタンが出る。
 
 ## 配送料（郵便番号 → 距離 → 料金）
 - 料金は `data/prices.json` の `delivery_tiers`（店のチラシの表）。式は `js/delivery-core.js`：店（`STORE_LATLNG`）からの直線距離（haversine）× 1.3 を道のりの目安にし、区分の境目 ±1km は「お届けの前に確定」と出す。表に無い番号・50km 超は要相談。送料無料の商品は 50km 以内なら 0 円。

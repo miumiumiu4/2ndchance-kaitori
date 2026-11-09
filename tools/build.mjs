@@ -36,6 +36,7 @@ const POSTS_DIR = path.resolve(ROOT, argVal("--posts") || "content/posts");
 
 const { CONFIG: BASE_CONFIG } = await import(pathToFileURL(path.join(ROOT, "js/config.js")).href);
 const QC = await import(pathToFileURL(path.join(ROOT, "js/quote-core.js")).href);
+const SC = await import(pathToFileURL(path.join(ROOT, "js/shop-core.js")).href);
 
 // 公開用の写しにだけ、環境変数（GitHub の Actions Variables）で値を差し込む
 const OVERRIDABLE = ["SITE_URL", "LINE_URL", "TEL", "GAS_URL", "HOURS", "OPENING_HOURS_SPEC", "OPENING_NOTE", "AIRCON_REF_PARAM", "AIRCON_REF_CODE", "MAIL_PERK_TEXT"];
@@ -54,6 +55,7 @@ const ITEMS = readJSON("data/items.json");
 const AREAS = readJSON("data/areas.json");
 const FAQ = readJSON("data/faq.json");
 const RESULTS = readJSON("data/results.json");
+const SHOP = readJSON("data/shop.json");
 const POSTS = publishedPosts(loadPosts(POSTS_DIR, ROOT), TODAY);
 
 // 特典（prices.perks）の1文。JSON-LD・llms.txt の説明に使う
@@ -72,6 +74,7 @@ const PAGES = [
   { file: "kataduke/index.html", path: "kataduke/", nav: "不用品回収・片付け", title: "不用品回収・片付け", desc: "量の4区分と間取り別の目安で、不用品回収と片付けの概算が出せます。買い取れる物は差し引きます。", form: "kataduke/#form-b", services: ["collection", "cleanup"] },
   { file: "seiri/index.html", path: "seiri/", nav: "遺品整理など", title: "遺品整理・生前整理・ゴミ屋敷・空き家片付け", desc: "遺品整理・生前整理・ゴミ屋敷片付け・空き家片付け。買取できる物は費用から差し引きます。", form: "kataduke/#form-c", services: ["ihin", "seizen", "gomiyashiki", "akiya"] },
   { file: "flow/index.html", path: "flow/", nav: "流れ・FAQ", title: "買取の流れ・必要なもの・よくある質問", desc: "申込から訪問査定までの3ステップ、本人確認書類、お金の受け取り方、よくある質問。", form: "kaitori/#form-a", services: ["buyback"], faq: true },
+  { file: "shop/index.html", path: "shop/", nav: "販売中の商品", title: "販売中の商品", desc: "店頭で販売中の家電・家具・インテリア。店頭受け取りか配送（郵便番号で配送料の目安）。お支払いは受け取り時に現金・クレジットカード・PayPay。", form: "shop/#order", services: [], shop: true },
   { file: "price/index.html", path: "price/", nav: "料金・実績", title: "料金目安・買取実績", desc: "不用品回収・片付けの料金目安、買取の上限目安、買取実績。", form: "kaitori/#form-a", services: ["buyback", "collection", "cleanup"], catalog: true },
   { file: "privacy/index.html", path: "privacy/", nav: null, title: "個人情報の取扱い", desc: "個人情報の取扱いについて。", form: "kaitori/#form-a", services: [] }
 ];
@@ -288,7 +291,7 @@ function priceTables(page, rel) {
 ${perksBox()}
 <h3 id="delivery" style="margin-top:18px">購入商品の配送料（店からの距離）</h3>
 <div class="table-wrap"><table class="price"><thead><tr><th scope="col">店からの距離</th><th scope="col">配送料</th></tr></thead><tbody>${delivery}</tbody></table></div>
-<p class="muted">距離は道のりの目安です。送料無料の商品は50km以内なら無料です。販売ページの注文フォームで郵便番号を入れると目安が出ます（準備中）。</p>`;
+<p class="muted">距離は道のりの目安です。送料無料の商品は50km以内なら無料です。郵便番号を入れると<a href="${rel}shop/#order">販売ページの注文フォーム</a>で目安が出ます。</p>`;
 }
 
 function resultsCards(page, rel, limit) {
@@ -302,6 +305,70 @@ function resultsCards(page, rel, limit) {
     })
     .join("")}</ul>
 <p class="muted">買取実績は過去の例です。同じ品物でも状態や時期で金額は変わります。</p>`;
+}
+
+// ---------- 販売ページ ----------
+// JPEG の幅と高さ（img の width・height に入れて、読み込み中のずれを防ぐ）
+function jpegSize(rel) {
+  try {
+    const b = fs.readFileSync(path.join(ROOT, rel));
+    let i = 2;
+    while (i < b.length && b[i] === 0xff) {
+      const m = b[i + 1];
+      if (m >= 0xc0 && m <= 0xc3) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) };
+      i += 2 + b.readUInt16BE(i + 2);
+    }
+  } catch (_) {}
+  return null;
+}
+const thumbOf = (p) => p.replace(/\.jpg$/, "-480.jpg");
+const shopItemPath = (it) => `shop/${it.id}/`;
+function imgTag(src, rel, alt, extra = "") {
+  const sz = jpegSize(src);
+  return `<img src="${rel}${esc(src)}" alt="${esc(alt)}"${sz ? ` width="${sz.w}" height="${sz.h}"` : ""}${extra}>`;
+}
+function shopPriceHTML(it) {
+  const p = SC.shopPrice(it);
+  if (p.undetermined) return '<span class="consult">価格は確認中</span>';
+  return p.sale ? `<s class="muted">${yen(p.list)}</s> ${yen(p.price)}<small>（${Math.round(p.sale * 100)}% OFF・税込）</small>` : `${yen(p.price)}<small>（税込）</small>`;
+}
+function shopMeta(it) {
+  return [it.condition, isNum(it.year) ? it.year + "年" : "", it.size, it.free_shipping ? "送料無料（50km以内）" : ""].filter(Boolean).map(esc).join("・");
+}
+function shopList(page, rel) {
+  return `<ul class="shop-grid" style="list-style:none;padding:0;margin:0">${SHOP.items
+    .map((it) => {
+      const st = it.status !== "available" ? `<span class="shop-band shop-band-${esc(it.status)}">${esc(SC.SHOP_STATUS[it.status] || it.status)}</span>` : "";
+      return `<li class="card shop-card${it.status === "sold" ? " is-sold" : ""}"><a class="shop-img" href="${rel}${shopItemPath(it)}">${imgTag(thumbOf(it.photos[0]), rel, it.name, ' loading="lazy"')}${st}</a>
+<h3><a href="${rel}${shopItemPath(it)}">${esc(it.name)}</a></h3>
+<p class="price-tag">${shopPriceHTML(it)}</p>
+<p class="muted">${shopMeta(it)}</p></li>`;
+    })
+    .join("\n")}</ul>`;
+}
+function shopNote() {
+  return `<p class="callout">${esc(SHOP.payment_note)}<br>${esc(SHOP.hold_note)}価格は税込です。配送料は<a href="#order">注文フォーム</a>で郵便番号から目安が出ます（<a href="../price/#delivery">配送料の表</a>）。</p>`;
+}
+function shopExtras(page, rel) {
+  return `<ul class="grid" style="list-style:none;padding:0;margin:0">${(SHOP.extras || [])
+    .map((x) => `<li class="card result-card">${imgTag(thumbOf(x.photo), rel, x.title, ' loading="lazy"')}<h3>${esc(x.title)}</h3><p>${esc(x.note)}</p></li>`)
+    .join("")}</ul>`;
+}
+function productLd(it) {
+  const p = SC.shopPrice(it);
+  const avail = { available: "https://schema.org/InStock", reserved: "https://schema.org/LimitedAvailability", sold: "https://schema.org/SoldOut" }[it.status];
+  const offer = { "@type": "Offer", priceCurrency: "JPY", availability: avail, itemCondition: it.condition === "新品" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition", seller: { "@id": (CONFIG.SITE_URL || "") + "#business" } };
+  if (!p.undetermined) offer.price = p.price;
+  else offer.description = "価格は確認中";
+  if (pageUrl(shopItemPath(it))) offer.url = pageUrl(shopItemPath(it));
+  return {
+    "@type": "Product",
+    name: it.name,
+    category: it.category,
+    ...(it.note ? { description: it.note } : {}),
+    ...(CONFIG.SITE_URL ? { image: CONFIG.SITE_URL + it.photos[0] } : {}),
+    offers: offer
+  };
 }
 
 // ---------- JSON-LD ----------
@@ -362,6 +429,7 @@ function catalog() {
 function jsonld(page) {
   const graph = [business()];
   page.services.forEach((id) => graph.push(service(id)));
+  if (page.shop) graph.push({ "@type": "ItemList", name: "販売中の商品", itemListElement: SHOP.items.map((it, i) => ({ "@type": "ListItem", position: i + 1, ...(pageUrl(shopItemPath(it)) ? { url: pageUrl(shopItemPath(it)) } : {}), item: productLd(it) })) });
   if (page.faq) graph.push({ "@type": "FAQPage", mainEntity: FAQ.faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) });
   if (page.catalog) {
     graph.push(catalog());
@@ -389,6 +457,10 @@ const FRAGMENTS = {
   perks: () => provisionalBand() + perksBox(),
   results: (p, rel) => resultsCards(p, rel),
   "results-top": (p, rel) => resultsCards(p, rel, 3),
+  "shop-list": (p, rel) => shopList(p, rel),
+  "shop-note": () => shopNote(),
+  "shop-extras": (p, rel) => shopExtras(p, rel),
+  "shop-top": (p, rel) => shopTop(rel),
   hours: () => (CONFIG.HOURS ? esc(CONFIG.HOURS) : PENDING),
   "latest-posts": (p, rel) => latestPosts(rel),
   // ありがとうエアコンへの送客（リンクは config の AIRCON_* から tools/aircon.mjs が作る）
@@ -409,11 +481,20 @@ function fill(html, page) {
   });
 }
 
+// トップの「販売中の商品」（販売中の先頭3つ）
+function shopTop(rel) {
+  const list = SHOP.items.filter((it) => it.status === "available").slice(0, 3);
+  return `<ul class="shop-grid" style="list-style:none;padding:0;margin:0">${list
+    .map((it) => `<li class="card shop-card"><a class="shop-img" href="${rel}${shopItemPath(it)}">${imgTag(thumbOf(it.photos[0]), rel, it.name, ' loading="lazy"')}</a><h3><a href="${rel}${shopItemPath(it)}">${esc(it.name)}</a></h3><p class="price-tag">${shopPriceHTML(it)}</p></li>`)
+    .join("")}</ul>
+<p style="margin-top:12px"><a href="${rel}shop/">販売中の商品をすべて見る</a></p>`;
+}
+
 // ---------- 生成ファイル ----------
 function sitemap() {
   const loc = (p) => (CONFIG.SITE_URL ? CONFIG.SITE_URL + p : p || "./");
   const head = CONFIG.SITE_URL ? "" : "<!-- SITE_URL が未設定のため相対パス。公開URLを決めたら CFG_SITE_URL（または config.js）に入れて build する -->\n";
-  const urls = PAGES.map((p) => `  <url><loc>${esc(loc(p.path))}</loc></url>`).join("\n");
+  const urls = PAGES.map((p) => `  <url><loc>${esc(loc(p.path))}</loc></url>`).concat(SHOP.items.map((it) => `  <url><loc>${esc(loc(shopItemPath(it)))}</loc></url>`)).join("\n");
   const blog = [`  <url><loc>${esc(loc("blog/"))}</loc></url>`]
     .concat(blogPagePaths().slice(1).map((p) => `  <url><loc>${esc(loc(p))}</loc></url>`))
     .concat(POSTS.map((p) => `  <url><loc>${esc(loc(postPath(p)))}</loc><lastmod>${p.date}</lastmod></url>`))
@@ -454,6 +535,8 @@ ${pages}
 - [出張エリア](${u("data/areas.json")}): 市町村名と要確認フラグ、出張費・査定料。
 - [よくある質問](${u("data/faq.json")})
 - [買取実績](${u("data/results.json")}): 過去の例。最初は空。
+- [販売中の商品](${u("data/shop.json")}): 店頭で販売中の商品（id・名前・税込価格 price（null は確認中）・割引 sale・状態 status・送料無料 free_shipping・写真）。
+- [郵便番号の座標](${u("data/postal/index.json")}): 郵便番号（7桁）→ 緯度経度（上3桁ごとのファイル）。配送料の距離計算用。出典：日本郵便 郵便番号データ／Geolonia japanese-addresses（CC BY 4.0）。
 
 ## 記事一覧
 ${LIVE_OPEN}
@@ -491,6 +574,12 @@ ${LIVE_CLOSE}
 - 価格表：\`?action=prices\`
 - 返り値は JSON（min・max・undetermined・provisional・lines・offset_note）。
 
+## 販売中の商品（段階1：注文受付のみ）
+- 一覧：${u("shop/")}　商品ごと：${u("shop/<id>/")}（JSON-LD の Product・Offer つき）
+${SHOP.items.map((it) => { const p = SC.shopPrice(it); return `- ${it.id}：${it.name}／${p.undetermined ? "価格は確認中" : p.price + "円（税込）"}／${SC.SHOP_STATUS[it.status]}${it.free_shipping ? "／送料無料（50km以内）" : ""}`; }).join("\n")}
+- ${SHOP.payment_note}${SHOP.hold_note}
+- 注文は販売ページのフォームから（AI からの注文 API は未提供）。
+
 ## 注意
 - 価格はすべて目安${PRICES.provisional ? "（現在は仮の金額）" : ""}。最終額は訪問査定で人が決める。AI がお客様に金額を約束しないこと。
 - 買取では古物営業法の本人確認が必要。本人確認は訪問時に人が行う（運転免許証・マイナンバーカード等）。
@@ -502,17 +591,18 @@ ${LIVE_CLOSE}
 `;
 }
 
-function quoteCoreGs() {
-  const src = fs.readFileSync(path.join(ROOT, "js/quote-core.js"), "utf8");
+function coreGs(file, name) {
+  const src = fs.readFileSync(path.join(ROOT, file), "utf8");
   const names = [...src.matchAll(/^export\s+(?:function|const)\s+(\w+)/gm)].map((m) => m[1]);
   const body = src.replace(/^export\s+/gm, "").replace(/^/gm, "  ").replace(/^\s+$/gm, "");
-  return `// 自動生成：tools/build.mjs が js/quote-core.js から作る。手で直さない（直すのは js/quote-core.js）。
-var QuoteCore = (function () {
+  return `// 自動生成：tools/build.mjs が ${file} から作る。手で直さない（直すのは ${file}）。
+var ${name} = (function () {
 ${body}
   return { ${names.map((n) => `${n}: ${n}`).join(", ")} };
 })();
 `;
 }
+const quoteCoreGs = () => coreGs("js/quote-core.js", "QuoteCore");
 function pricesGs() {
   return `// 自動生成：tools/build.mjs が data/prices.json から作る。手で直さない。
 // 価格を変えたら build → このファイルを Apps Script に反映（gas/README.md）。
@@ -540,9 +630,9 @@ function ldScript(graph) {
   const json = JSON.stringify({ "@context": "https://schema.org", "@graph": graph }, null, 1).replace(/</g, "\\u003c");
   return `<script type="application/ld+json">\n${json}\n</script>`;
 }
-function shell({ pagePath, title, desc, graph, main, ogType }) {
+function shell({ pagePath, title, desc, graph, main, ogType, form, script, rss = true }) {
   const rel = relOf(pagePath);
-  const page = { ...BLOG, path: pagePath };
+  const page = { ...BLOG, path: pagePath, ...(form ? { form } : {}) };
   const canonical = pageUrl(pagePath) ? `<link rel="canonical" href="${esc(pageUrl(pagePath))}">\n` : "";
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -556,8 +646,7 @@ function shell({ pagePath, title, desc, graph, main, ogType }) {
 <meta property="og:title" content="${esc(title)}">
 ${canonical}<link rel="stylesheet" href="${rel}css/site.css?v=${CSS_VER}">
 <link rel="icon" href="${rel}assets/icons/truck-mini.svg" type="image/svg+xml">
-<link rel="alternate" type="application/rss+xml" title="${esc(CONFIG.SITE_NAME)} の記事" href="${rel}blog/feed.xml">
-${ldScript(graph)}
+${rss ? `<link rel="alternate" type="application/rss+xml" title="${esc(CONFIG.SITE_NAME)} の記事" href="${rel}blog/feed.xml">\n` : ""}${ldScript(graph)}
 </head>
 <body>
 <a class="visually-hidden" href="#main">本文へ</a>
@@ -567,9 +656,42 @@ ${main}
 </main>
 ${footer(page, rel)}
 ${cta(page, rel)}
-</body>
+${script ? `<script type="module" src="${rel}${script}"></script>\n` : ""}</body>
 </html>
 `;
+}
+
+// 商品ごとの静的ページ（shop/<id>/index.html）。build が作り、コミットする
+function shopItemPage(it) {
+  const pagePath = shopItemPath(it);
+  const rel = relOf(pagePath);
+  const p = SC.shopPrice(it);
+  const ok = SC.orderable(it);
+  const rows = [["状態", SC.SHOP_STATUS[it.status] || it.status], ["価格", p.undetermined ? "確認中（お問い合わせください）" : yen(p.price) + "（税込）" + (p.sale ? `／定価 ${yen(p.list)} から ${Math.round(p.sale * 100)}% OFF` : "")], ["品物の状態", it.condition], ["年式", isNum(it.year) ? it.year + "年" : "—"], ["大きさ", it.size || "—"], ["配送", it.free_shipping ? "送料無料（店から50km以内）" : "配送料は店からの距離で決まります"]];
+  const pay = it.payment_link ? `<a class="btn btn-ghost" href="${esc(it.payment_link)}" target="_blank" rel="noopener">カードで支払う（外部サイト）</a>` : "";
+  const main = `<article class="section" aria-labelledby="h-item">
+<p class="post-meta"><a href="${rel}shop/">販売中の商品</a></p>
+<h1 id="h-item">${esc(it.name)}</h1>
+<div class="shop-detail">
+<div class="shop-photo">${imgTag(it.photos[0], rel, it.name)}${it.status !== "available" ? `<span class="shop-band shop-band-${esc(it.status)}">${esc(SC.SHOP_STATUS[it.status])}</span>` : ""}</div>
+<div>
+<p class="price-tag">${shopPriceHTML(it)}</p>
+<dl class="shop-spec">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+${it.note ? `<p>${esc(it.note)}</p>` : ""}
+<div class="btn-row" style="grid-template-columns:1fr">
+${ok ? `<a class="btn btn-form" href="${rel}shop/?item=${encodeURIComponent(it.id)}#order">この商品を申し込む</a>` : `<span class="btn btn-form is-disabled" aria-disabled="true">${esc(SC.SHOP_STATUS[it.status])}のため申し込めません</span>`}
+${pay}
+</div>
+<p class="muted" style="margin-top:10px">${esc(SHOP.payment_note)}${esc(SHOP.hold_note)}</p>
+</div>
+</div>
+</article>
+<section class="section" aria-labelledby="h-more">
+<h2 id="h-more">ほかの商品</h2>
+<p><a href="${rel}shop/">販売中の商品の一覧へ</a>　／　<a href="${rel}price/#delivery">配送料の表</a></p>
+${contact(BLOG, rel)}
+</section>`;
+  return [pagePath + "index.html", shell({ pagePath, title: it.name, desc: `${it.name}。${p.undetermined ? "価格は確認中" : yen(p.price) + "（税込）"}。熊本県合志市のリサイクル店で販売中。`, graph: [business(), productLd(it)], main, form: "shop/#order", rss: false })];
 }
 function postCard(p, rel) {
   const tags = p.tags.length ? `<ul class="post-tags">${p.tags.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : "";
@@ -690,6 +812,9 @@ outputs.set("robots.txt", robots());
 outputs.set("llms.txt", llms());
 outputs.set("gas/QuoteCore.gs", quoteCoreGs());
 outputs.set("gas/Prices.gs", pricesGs());
+outputs.set("gas/ShopCore.gs", coreGs("js/shop-core.js", "ShopCore"));
+outputs.set("gas/Shop.gs", `// 自動生成：tools/build.mjs が data/shop.json から作る。手で直さない。\n// 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。\nvar SHOP = ${JSON.stringify(SHOP, null, 2)};\n`);
+for (const it of SHOP.items) { const [f, html] = shopItemPage(it); outputs.set(f, html); }
 
 // blog/ は丸ごと作り直す（消えた記事・未来日に戻した記事が残らないように）
 function writeBlog(dir) {
@@ -730,6 +855,7 @@ if (CHECK) {
   copy(ROOT, OUT);
   for (const [rel, content] of outputs) {
     if (rel.startsWith("gas/")) continue;
+    fs.mkdirSync(path.dirname(path.join(OUT, rel)), { recursive: true });
     fs.writeFileSync(path.join(OUT, rel), content);
   }
   writeBlog(OUT);
@@ -737,10 +863,15 @@ if (CHECK) {
   fs.writeFileSync(path.join(OUT, ".nojekyll"), "");
   console.log("build --out: " + path.relative(ROOT, OUT) + " に公開用の写しを作成（差し込んだ設定：" + OVERRIDABLE.filter((k) => process.env["CFG_" + k]).join(", ") + "）");
 } else {
+  // 消した商品のページを残さない
+  const keep = new Set(SHOP.items.map((it) => it.id));
+  for (const ent of fs.readdirSync(path.join(ROOT, "shop"), { withFileTypes: true })) {
+    if (ent.isDirectory() && !keep.has(ent.name)) fs.rmSync(path.join(ROOT, "shop", ent.name), { recursive: true, force: true });
+  }
   let n = 0;
   for (const [rel, content] of outputs) {
     const p = path.join(ROOT, rel);
-    if (!fs.existsSync(p) || fs.readFileSync(p, "utf8") !== content) { fs.writeFileSync(p, content); n++; }
+    if (!fs.existsSync(p) || fs.readFileSync(p, "utf8") !== content) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, content); n++; }
   }
   writeBlog(ROOT);
   console.log("build: " + outputs.size + " ファイルを確認、" + n + " ファイルを更新");

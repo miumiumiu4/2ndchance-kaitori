@@ -8,10 +8,12 @@
 | `Code.gs` | `doPost`（受付・配送料ログ）・`doGet`（`action=quote`／`action=prices`）・「集計」シートの式（`ensureDashboard_()`） | このリポジトリで直す |
 | `QuoteCore.gs` | 概算の式。`js/quote-core.js` から自動生成 | `node tools/build.mjs`（手で直さない） |
 | `Prices.gs` | 価格表。`data/prices.json` から自動生成 | `node tools/build.mjs`（手で直さない） |
+| `ShopCore.gs` | 販売商品の金額の式。`js/shop-core.js` から自動生成 | `node tools/build.mjs`（手で直さない） |
+| `Shop.gs` | 販売商品の表。`data/shop.json` から自動生成 | `node tools/build.mjs`（手で直さない） |
 
 ## 初回の手順
 1. 受付用の Google スプレッドシートを新しく作る（シート「受付」「メール会員」「配送料ログ」「集計」は最初の受付で自動で作られる）。
-2. Apps Script のプロジェクトを新しく作り、`Code.gs`・`QuoteCore.gs`・`Prices.gs` の3つを同じ名前で置く（clasp を使う場合は `.clasp.json` をコミットしない）。
+2. Apps Script のプロジェクトを新しく作り、`Code.gs`・`QuoteCore.gs`・`Prices.gs`・`ShopCore.gs`・`Shop.gs` の5つを同じ名前で置く（clasp を使う場合は `.clasp.json` をコミットしない）。
 3. 「プロジェクトの設定」→「スクリプト プロパティ」に次を入れる。**値はこのリポジトリ・Issue・PR に書かない。**
 
    | プロパティ名 | 中身 | 必須 |
@@ -31,14 +33,14 @@
 6. 出てきたウェブアプリの URL（`/exec` で終わる）を、GitHub の Actions Variables `CFG_GAS_URL` に入れる（README「設定手順」）。リポジトリの `js/config.js` には書かない。
 
 ## 更新の手順
-- 価格表（`data/prices.json`）や式（`js/quote-core.js`）を変えたら、`node tools/build.mjs` で `QuoteCore.gs`・`Prices.gs` を作り直し、Apps Script に反映する。
+- 価格表（`data/prices.json`）や式（`js/quote-core.js`）、販売商品（`data/shop.json`・`js/shop-core.js`）を変えたら、`node tools/build.mjs` で `QuoteCore.gs`・`Prices.gs`・`ShopCore.gs`・`Shop.gs` を作り直し、Apps Script に反映する（商品の入れ替え・売切れのたびに `Shop.gs` も更新。古いままだと「照合」が「差あり」になり、売切れの商品の注文を断れない）。
 - 反映は「デプロイを管理」→ 今のデプロイを編集 →「新バージョン」。**新しいデプロイを作らない**（URL が変わり、フォームが送れなくなる）。
 - 画面と受付で価格表の版がずれると、シートの「照合」列が「差あり」になる。`data/prices.json` の `updated` を変えたら、必ず GAS 側も更新する。
 
 ## シート
 | シート | 中身 |
 |---|---|
-| `受付` | 1受付1行。全フォーム（A・B・C・販売）で同じ列順（下の表）。見出しが今の列と違う古いシートは「受付（旧 日付）」に名前を変えて残し、新しく作る |
+| `受付` | 1受付1行。全フォーム（A・B・C・販売）で同じ列順（下の表）。受付番号は概算フォームが `R…`、販売の注文が `S…`。販売は `照合` に商品代（`Shop.gs` との一致）、`概算(最小)`・`概算(最大)` にお支払いの目安（商品代＋配送料）が入る。見出しが今の列と違う古いシートは「受付（旧 日付）」に名前を変えて残し、新しく作る |
 | `メール会員` | メルマガに同意した人をメールで1行に upsert：`メール`・`お名前`・`同意日時`・`出典フォーム`・`受付番号`・`状態`（`active`／`unsub`）・`同意文(指紋)`・`更新日時`。「停止」の返信が来たら `状態` を手で `unsub` にする |
 | `配送料ログ` | 配送料を計算しただけの記録（名前なし）：`日時`・`郵便番号`・`郵便番号(上3桁)`・`区分` |
 | `集計` | 初回に `ensureDashboard_()` が式だけを置く：日別件数・種類別・商品別・郵便番号上3桁別・流入元別（utm_source）・参照元別・メルマガ同意率・配送料の計算の地域別。消すと次の受付で作り直される |
@@ -100,6 +102,13 @@
 - お客様への自動返信は全フォームで送る（メールは必須）。返信先（Reply-To）は `OWNER_EMAIL`。
 - 自動返信の末尾に「配信停止はこのメールに『停止』と返信」の一文を入れている（特定電子メール法）。
 - メール配信サービスへの連携は後日。始めるときは `MAILER_API_KEY` に API キーを入れ、`メール会員` の `active` だけを送る。
+
+## 送ってくる JSON（kind）
+| kind | 中身 |
+|---|---|
+| （なし） | 概算フォーム A・B・C：`form`・`input`・`quote`・`prices_updated`・`customer`（`name_kana`・`tel`・`email`・`line_name`・`zip`・`address`）・`dates`・`photos`・`payment`・`note`・`newsletter`（`opt_in`・`at`・`text_hash`）・`postal3`・`meta`・`consent` |
+| `shop` | 販売の注文：`item_id`・`item_name`・`goods_price`・`receive`（`store`／`delivery`）・`delivery`（`zip`・`km`・`band`・`fee`・`consult`）・`total`・`payment`（`cash`／`card`／`paypay`）・`shop_updated`・`customer`（`name`・`tel`・`line_name`・`email`・`zip`・`address`）・`newsletter`・`postal3`・`meta`・`note`・`consent` |
+| `delivery_log` | 配送料を計算しただけ：`zip`・`band`・`at`（名前・連絡先は送らない） |
 
 ## 動作確認
 - `<URL>?action=prices` で価格表の JSON が返る。
