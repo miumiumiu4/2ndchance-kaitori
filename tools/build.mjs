@@ -266,9 +266,11 @@ function priceTables(page, rel) {
   const options = PRICES.options
     .map((o) => `<tr><td>${esc(o.name)}</td><td class="num">${optText(o)}</td></tr>`)
     .join("");
-  const delivery = (PRICES.delivery_tiers || [])
+  const deliveryRows = (list) => (list || [])
     .map((d) => `<tr><td>${esc(d.label)}</td><td class="num">${isNum(d.fee) ? (d.fee === 0 ? "無料" : yen(d.fee)) : '<span class="consult">要相談</span>'}</td></tr>`)
     .join("");
+  const deliveryTable = (caption, list) => `<div class="table-wrap"><table class="price"><caption>${esc(caption)}</caption><thead><tr><th scope="col">店からの距離</th><th scope="col">配送料</th></tr></thead><tbody>${deliveryRows(list)}</tbody></table></div>`;
+  const hasStore = (PRICES.delivery_tiers_store || []).length > 0;
   const inc = PRICES.cleanup_includes.map((s) => `<li>${esc(s)}</li>`).join("");
   return `${provisionalBand()}<p class="callout"><b>${esc(PRICES.disclaimer)}</b><br>価格表の更新日：${PRICES.updated ? esc(PRICES.updated) + (PRICES.provisional ? "（仮の金額）" : "") : "未定（金額は共同代表の確認待ち）"}／税：${PRICES.tax === "included" ? "税込" : esc(PRICES.tax)}</p>
 <h3 id="collection">不用品回収（量の区分）</h3>
@@ -290,14 +292,25 @@ function priceTables(page, rel) {
 <h3 id="perks" style="margin-top:18px">買取の特典</h3>
 ${perksBox()}
 <h3 id="delivery" style="margin-top:18px">購入商品の配送料（店からの距離）</h3>
-<div class="table-wrap"><table class="price"><thead><tr><th scope="col">店からの距離</th><th scope="col">配送料</th></tr></thead><tbody>${delivery}</tbody></table></div>
-<p class="muted">距離は道のりの目安です。${freeDeliveryText()}送料無料の商品は50km以内なら無料です。郵便番号を入れると<a href="${rel}shop/#order">販売ページの注文フォーム</a>で目安が出ます。</p>`;
+<div class="${hasStore ? "grid-2 delivery-tables" : ""}">
+${deliveryTable("ネット注文（販売ページ）の場合", PRICES.delivery_tiers)}
+${hasStore ? deliveryTable("店頭でご購入の場合", PRICES.delivery_tiers_store) : ""}
+</div>
+<p class="muted">距離は道のりの目安です。${deliveryNote()}送料無料の商品は50km以内なら無料です。郵便番号を入れると<a href="${rel}shop/#order">販売ページの注文フォーム</a>でネット注文の目安が出ます。</p>`;
 }
 
-// 配送料が無料の区分（fee 0）の一番遠い距離。「店から10km以内の配送は無料です。」
-function freeDeliveryText() {
-  const free = (PRICES.delivery_tiers || []).filter((d) => d.fee === 0 && isNum(d.max_km)).map((d) => d.max_km);
-  return free.length ? `店から${Math.max(...free)}km以内の配送は無料です。` : "";
+// 配送料が無料の区分（fee 0）の一番遠い距離（なければ null）
+function freeKm(list) {
+  const free = (list || []).filter((d) => d.fee === 0 && isNum(d.max_km)).map((d) => d.max_km);
+  return free.length ? Math.max(...free) : null;
+}
+// ネット注文と店頭購入の配送料の違いを1文で。「店頭でご購入の場合は3km以内が無料です。ネット注文には無料の区分はありません（送料無料の商品を除く）。」
+function deliveryNote() {
+  const online = freeKm(PRICES.delivery_tiers), store = freeKm(PRICES.delivery_tiers_store);
+  const out = [];
+  if (store !== null) out.push(`店頭でご購入の場合は${store}km以内が無料です。`);
+  out.push(online !== null ? `ネット注文は${online}km以内が無料です。` : "ネット注文には無料の区分はありません（送料無料の商品を除く）。");
+  return out.join("");
 }
 
 function resultsCards(page, rel, limit) {
@@ -434,7 +447,8 @@ function catalog() {
       ...LAYOUT_KINDS().map((k) => ({ "@type": "OfferCatalog", name: QC.CLEANUP_KINDS[k] + "（間取り別）", itemListElement: PRICES.cleanup_by_kind[k].map((r) => offer(QC.CLEANUP_KINDS[k] + " " + r.layout, r.price_from, null, QC.hoursText(r.hours) ? "作業時間の目安 " + QC.hoursText(r.hours) : null)) })),
       { "@type": "OfferCatalog", name: "その他の片付け（坪数）", itemListElement: (PRICES.other_cleanup || []).map((o) => offer(o.name, o.price_from, o.per_tsubo + "坪あたり", o.note)) },
       { "@type": "OfferCatalog", name: "オプション", itemListElement: PRICES.options.map((o) => offer(o.name, o.price, o.unit, o.note)) },
-      { "@type": "OfferCatalog", name: "購入商品の配送料", itemListElement: (PRICES.delivery_tiers || []).map((d) => offer("配送 " + d.label, d.fee, null)) }
+      { "@type": "OfferCatalog", name: "購入商品の配送料（ネット注文）", itemListElement: (PRICES.delivery_tiers || []).map((d) => offer("配送 " + d.label, d.fee, null)) },
+      ...((PRICES.delivery_tiers_store || []).length ? [{ "@type": "OfferCatalog", name: "購入商品の配送料（店頭でご購入の場合）", itemListElement: PRICES.delivery_tiers_store.map((d) => offer("配送（店頭購入） " + d.label, d.fee, null)) }] : [])
     ]
   };
 }
@@ -523,7 +537,9 @@ function llms() {
   const tiers = PRICES.collection_tiers.map((t) => `${t.id}（${QC.tierName(t)}・${t.note}）`).join("、");
   const layouts = (PRICES.cleanup_by_kind[LAYOUT_KINDS()[0]] || []).map((r) => r.layout).join("、");
   const others = (PRICES.other_cleanup || []).map((o) => `${o.id}（${o.name}・${o.per_tsubo}坪あたり ${isNum(o.price_from) ? o.price_from + "円〜" : "要相談"}）`).join("、");
-  const deliv = (PRICES.delivery_tiers || []).map((d) => `${d.label}：${isNum(d.fee) ? (d.fee === 0 ? "無料" : d.fee + "円") : "要相談"}`).join("／");
+  const delivList = (list) => (list || []).map((d) => `${d.label}：${isNum(d.fee) ? (d.fee === 0 ? "無料" : d.fee + "円") : "要相談"}`).join("／");
+  const deliv = delivList(PRICES.delivery_tiers);
+  const delivStore = delivList(PRICES.delivery_tiers_store);
   const opts = PRICES.options.map((o) => `${o.id}（${o.name}）`).concat(Object.entries(QC.CONSULT_OPTIONS).map(([k, v]) => `${k}（${v}・相談のみ）`)).join("、");
   const kinds = Object.entries(QC.CLEANUP_KINDS).map(([k, v]) => `${k}（${v}）`).join("、");
   const api = CONFIG.GAS_URL || "（準備中：URL は公開後に入ります）";
@@ -542,7 +558,7 @@ ${PRICES.provisional ? `## 金額は${PROVISIONAL_LABEL}
 ${pages}
 
 ## 機械可読データ（個人情報は含まない）
-- [料金目安](${u("data/prices.json")}): 不用品回収の量の区分・片付けの種類ごとの間取り別（cleanup_by_kind）・倉庫と草刈り（other_cleanup）・オプション・買取の最低額と上限目安と年式の目安・状態係数・特典（perks）・配送料（delivery_tiers）。null は「要相談」。provisional: true のあいだは仮の金額。
+- [料金目安](${u("data/prices.json")}): 不用品回収の量の区分・片付けの種類ごとの間取り別（cleanup_by_kind）・倉庫と草刈り（other_cleanup）・オプション・買取の最低額と上限目安と年式の目安・状態係数・特典（perks）・配送料（delivery_tiers＝ネット注文。delivery_tiers_store＝店頭でご購入の場合・表示だけ）。null は「要相談」。provisional: true のあいだは仮の金額。
 - [取扱品目](${u("data/items.json")}): 買取の可否、見るところ、減額になりやすいこと、買取できない物の例。
 - [出張エリア](${u("data/areas.json")}): 市町村名と要確認フラグ、出張費・査定料。
 - [よくある質問](${u("data/faq.json")})
@@ -598,7 +614,9 @@ ${SHOP.items.map((it) => { const p = SC.shopPrice(it); return `- ${it.id}：${it
 - 予約は、フォームまたは LINE・電話の受付のあと、電話の折返しで日時を相談して確定する。フォーム送信だけでは確定しない。
 - 買取代金の受け取りは現金が基本、高額の場合は銀行振込。お客様が支払う費用（回収・片付け・配送・商品代）は現金・クレジットカード・PayPay。
 - 出張費・査定料は店から30km圏内は無料。
-- 購入商品の配送料（店からの道のりの目安）：${deliv}。${freeDeliveryText()}送料無料の商品は50km以内なら無料。
+- 購入商品の配送料（店からの道のりの目安・ネット注文）：${deliv}。送料無料の商品は50km以内なら無料。郵便番号からの計算はこの表を使う。
+${delivStore ? `- 店頭でご購入の商品の配送料（表示だけ）：${delivStore}。${deliveryNote()}
+` : ""}
 - 予約の書き込み API は段階2（未提供）。
 `;
 }

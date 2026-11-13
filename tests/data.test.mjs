@@ -36,6 +36,9 @@ test("prices.json：金額・時間は null か 0 以上の数値、id は重複
   const dt = p.delivery_tiers;
   dt.forEach((d, i) => { assert.ok(nullOrNum(d.fee), d.label); if (i < dt.length - 1) assert.ok(d.max_km > (i ? dt[i - 1].max_km : 0), d.label); });
   assert.equal(dt[dt.length - 1].max_km, null);
+  const st = p.delivery_tiers_store || [];
+  st.forEach((d, i) => { assert.ok(nullOrNum(d.fee), "店頭 " + d.label); if (i < st.length - 1) assert.ok(d.max_km > (i ? st[i - 1].max_km : 0), "店頭 " + d.label); });
+  if (st.length) assert.equal(st[st.length - 1].max_km, null);
   for (const [k, v] of Object.entries(p.condition_factor)) if (!k.startsWith("_")) assert.ok(typeof v === "number" && v >= 0 && v <= 1, k);
   for (const list of [p.collection_tiers, p.buyback_items, p.options]) {
     const ids = list.map((x) => x.id);
@@ -62,10 +65,11 @@ test("prices.json は prices.template.json と同じ形（キーが欠けてい�
 
 // 金額そのものは管理画面で共同代表が変えるので data/prices.json には固定しない。
 // 式の試験に使う写し（tests/fixtures/prices.json）が 11/9 打合せ＋11/13 配送料の表のままかを確かめる。
-test("試験用の価格表（tests/fixtures/prices.json）：11/9 打合せの金額と 11/13 の配送料（10km 以内は無料）", () => {
+test("試験用の価格表（tests/fixtures/prices.json）：11/9 打合せの金額と 11/13 の配送料（ネット注文・店頭購入）", () => {
   const p = read("tests/fixtures/prices.json");
   assert.equal(p.updated, "2026-11-13");
-  assert.deepEqual(p.delivery_tiers.map((d) => [d.max_km, d.fee]), [[10, 0], [15, 3000], [20, 4000], [25, 5000], [30, 6000], [50, 10000], [null, null]], "配送料は店のチラシどおり（10km 以内は無料）");
+  assert.deepEqual(p.delivery_tiers.map((d) => [d.max_km, d.fee]), [[10, 2000], [15, 3000], [20, 4000], [25, 5000], [30, 6000], [50, 10000], [null, null]], "ネット注文の配送料（無料の区分なし）");
+  assert.deepEqual(p.delivery_tiers_store.map((d) => [d.max_km, d.fee]), [[3, 0], [10, 2000], [15, 3000], [20, 4000], [25, 5000], [30, 6000], [50, 10000], [null, null]], "店頭購入の配送料は店のチラシどおり（3km 以内は無料）");
   const b = Object.fromEntries(p.buyback_items.map((x) => [x.id, x]));
   ["fridge", "washer", "microwave", "gas_stove", "carpet", "curtain"].forEach((id) => assert.equal(b[id].year_limit, 5, id));
   assert.deepEqual([b.fridge.min_price, b.fridge.max_price], [1000, 20000]);

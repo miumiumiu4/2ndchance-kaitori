@@ -298,6 +298,43 @@
   },
   "delivery_tiers": [
     {
+      "max_km": 10,
+      "fee": null,
+      "label": "10km以内"
+    },
+    {
+      "max_km": 15,
+      "fee": null,
+      "label": "15km以内"
+    },
+    {
+      "max_km": 20,
+      "fee": null,
+      "label": "20km以内"
+    },
+    {
+      "max_km": 25,
+      "fee": null,
+      "label": "25km以内"
+    },
+    {
+      "max_km": 30,
+      "fee": null,
+      "label": "30km以内"
+    },
+    {
+      "max_km": 50,
+      "fee": null,
+      "label": "30〜50km"
+    },
+    {
+      "max_km": null,
+      "fee": null,
+      "label": "50km超（要相談）"
+    }
+  ],
+  "delivery_tiers_store": [
+    {
       "max_km": 3,
       "fee": null,
       "label": "3km以内"

@@ -31,11 +31,11 @@ test("haversine：店から真東 10km は 10km（誤差 0.05km 以内）", () =
   assert.equal(haversineKm(STORE, STORE), 0);
 });
 
-test("料金区分：10km 以内は無料・15km 3,000・20km 4,000・25km 5,000・30km 6,000・30〜50km 10,000・50km 超は要相談", () => {
+test("料金区分（ネット注文）：無料の区分なし。10km 2,000・15km 3,000・20km 4,000・25km 5,000・30km 6,000・30〜50km 10,000・50km 超は要相談", () => {
   const t = PRICES.delivery_tiers;
-  assert.equal(deliveryTierFor(2.9, t).tier.fee, 0);
-  assert.equal(deliveryTierFor(3.1, t).tier.fee, 0);
-  assert.equal(deliveryTierFor(10, t).tier.fee, 0);
+  assert.equal(deliveryTierFor(0.5, t).tier.fee, 2000);
+  assert.equal(deliveryTierFor(2.9, t).tier.fee, 2000);
+  assert.equal(deliveryTierFor(10, t).tier.fee, 2000);
   assert.equal(deliveryTierFor(10.1, t).tier.fee, 3000);
   assert.equal(deliveryTierFor(14, t).tier.fee, 3000);
   assert.equal(deliveryTierFor(19, t).tier.fee, 4000);
@@ -53,9 +53,10 @@ test("直線 × 1.3 を道のりの目安にして料金を出す", () => {
   assert.equal(a.consult, false);
   assert.equal(a.near_boundary, false);
   assert.equal(deliveryFeeText(a), "¥3,000");
-  assert.equal(q(5).fee, 0); // 6.5km → 10km 以内は無料
-  assert.equal(q(1).fee, 0);
-  assert.equal(deliveryFeeText(q(1)), "無料");
+  assert.equal(q(5).fee, 2000); // 6.5km → 10km 以内
+  assert.equal(q(1).fee, 2000, "ネット注文は店の近くでも無料にならない");
+  assert.equal(q(1, { freeShipping: true }).fee, 0);
+  assert.equal(deliveryFeeText(q(1, { freeShipping: true })), "無料");
   const far = q(40); // 52km
   assert.equal(far.consult, true);
   assert.equal(far.fee, null);
@@ -64,7 +65,7 @@ test("直線 × 1.3 を道のりの目安にして料金を出す", () => {
 
 test("境界 ±1km は「お届けの前に確定」の注記", () => {
   const near = q(7.5); // 9.75km（10km の手前）
-  assert.equal(near.fee, 0);
+  assert.equal(near.fee, 2000);
   assert.equal(near.near_boundary, true);
   assert.match(near.note, /確定/);
   assert.equal(q(8).near_boundary, true); // 10.4km（10km を少し超えた）
@@ -102,10 +103,11 @@ test("data/postal：上3桁ごとの JSON、7桁 → [緯度, 経度]（小数4�
     }
   }
   assert.equal(n, idx.count);
-  // 合志市幾久富（店の町域）は 10km 以内＝無料
+  // 合志市幾久富（店の町域）は 10km 以内＝ネット注文は 2,000円、送料無料の商品なら無料
   const koshi = read("data/postal/861.json");
   const r = deliveryQuote("861-1112", koshi, PRICES, { store: STORE });
-  assert.equal(r.fee, 0);
+  assert.equal(r.fee, 2000);
+  assert.equal(deliveryQuote("861-1112", koshi, PRICES, { store: STORE, freeShipping: true }).fee, 0);
   // 熊本市中央区の中心部は 10〜20km 程度
   const kc = deliveryQuote("860-0806", read("data/postal/860.json"), PRICES, { store: STORE });
   assert.ok(kc.km > 10 && kc.km < 25, String(kc.km));

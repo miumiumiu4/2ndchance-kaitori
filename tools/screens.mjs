@@ -270,10 +270,10 @@ try {
     check("販売：2点（送料無料1・通常1）→ 商品代＋配送料1回分（860-0806 は約16km → ¥4,000）", fee === 4000 && total2 === "¥" + (50500 + fee).toLocaleString("ja-JP"), `配送料 ¥${fee}／目安 ${total2}`);
     check("販売：内訳に「1回分」と送料無料でない商品の案内", (await txt("#o-total")).includes("（1回分）") && (await txt("#o-total")).includes("送料無料でない商品が入っているため"));
     await pg.locator("#shop-order").screenshot({ path: path.join(ROOT, "screens", "shop-cart-390.png") });
-    // 店の近く（861-1112・10km 以内）は送料無料でない商品が入っていても配送料は無料
+    // 店の近く（861-1112・10km 以内）：ネット注文に無料の区分は無いので、送料無料でない商品が入っていれば 2,000円
     await pg.fill("#o-zip", "8611112");
-    await pg.waitForFunction(() => document.querySelector("[data-delivery-fee]").textContent.trim() === "無料");
-    check("販売：861-1112（店から10km以内）は送料無料でない商品があっても配送料 無料", (await txt("[data-total]")) === "¥50,500", await txt("[data-total]"));
+    await pg.waitForFunction(() => document.querySelector("[data-delivery-fee]").textContent.trim() === "¥2,000");
+    check("販売：861-1112（店から10km以内）は送料無料でない商品があれば配送料 ¥2,000（ネット注文に無料の区分なし）", (await txt("[data-total]")) === "¥52,500", await txt("[data-total]"));
     await pg.fill("#o-zip", "8600806");
     await pg.waitForFunction(() => /¥/.test(document.querySelector("[data-delivery-fee]").textContent));
 

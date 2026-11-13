@@ -73,13 +73,17 @@ test("provisional: true のとき、料金ページ・トップ・フォーム�
   // 料金ページの表の「要相談」は、値が null の所（生前整理の確認中・配送 50km 超）だけ
   const table = /<!--build:prices-->([\s\S]*?)<!--\/build:prices-->/.exec(read("price/index.html"))[1];
   const nulls = Object.values(prices.cleanup_by_kind).flat().filter((r) => r.price_from === null).length
-    + prices.delivery_tiers.filter((d) => d.fee === null).length;
+    + prices.delivery_tiers.filter((d) => d.fee === null).length
+    + (prices.delivery_tiers_store || []).filter((d) => d.fee === null).length;
   assert.equal((table.match(/<span class="consult">要相談<\/span>/g) || []).length, nulls, "料金表の要相談の数");
   // 金額は管理画面で変わるので、data/prices.json の値から期待する文字を作る
   const yen = (n) => "¥" + n.toLocaleString("ja-JP") + "〜";
   const t0 = prices.collection_tiers.find((t) => t.price_from !== null);
   if (t0) assert.ok(table.includes(yen(t0.price_from)), "量の区分の金額");
   assert.match(table, /1R・1K/);
+  // 配送料はネット注文と店頭購入の2つの表
+  assert.match(table, /<caption>ネット注文（販売ページ）の場合<\/caption>/);
+  if ((prices.delivery_tiers_store || []).length) assert.match(table, /<caption>店頭でご購入の場合<\/caption>/);
   assert.match(table, /クオカード/);
   const stairs = prices.options.find((o) => o.id === "stairs");
   if (stairs && stairs.price === 0) assert.match(table, /階段での運び出し<\/td><td class="num">無料/);

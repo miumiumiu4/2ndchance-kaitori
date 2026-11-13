@@ -92,7 +92,7 @@ npm test               # 全部緑になってからコミット
 - 今は**仮の金額**（2026-11-09 共同代表との打合せで決めた目安。それ以前は 2026-11-07 オーナー指示の一般的な相場）。`provisional: true` のあいだ、料金ページ・トップの料金要約・フォームの概算の上に「仮の目安（調整中）」の帯と `provisional_note` を出し、llms.txt・JSON-LD・概算 API の返り値にも仮の旨が載る。正式な金額が来たら値を差し替え、`provisional` を `false` にする（帯は自動で消える）。
 - 片付けは種類ごとの間取り表 `cleanup_by_kind`（`ihin`・`seizen`・`gomiyashiki`・`akiya`。どれも同じ間取りの並び）。倉庫・草刈りは `other_cleanup`（`per_tsubo` 坪あたり `price_from`。10坪単位で切り上げ）。
 - 買取は `min_price`（最低額。年式の目安以内なら下回らない）〜 `max_price`。オプションの `price_by_form` はフォーム別の料金（解体は片付け C で 0 円）。
-- 特典 `perks`（クオカード `quo_card.threshold`・同日査定 `same_day_up.rate`）と配送料 `delivery_tiers`（`max_km` の小さい順、最後は `null`＝要相談）も同じ表に持つ。
+- 特典 `perks`（クオカード `quo_card.threshold`・同日査定 `same_day_up.rate`）と配送料も同じ表に持つ。配送料は2つ：`delivery_tiers`＝**ネット注文**（販売ページの郵便番号の計算が使う。無料の区分なし）、`delivery_tiers_store`＝**店頭でご購入の場合**（店のチラシの表。3km以内は無料。料金ページに並べて出すだけ）。どちらも `max_km` の小さい順、最後は `null`＝要相談。
 - 片付けの作業時間 `hours` は数値（「約N時間」と表示）か「1〜2時間」のような文字列。
 - 形は `prices.template.json` と同じに保つ（テストが確かめる）。金額を入れたら `updated` を `YYYY-MM-DD` にする。
 - 変えたら `node tools/build.mjs` → `gas/Prices.gs` も作り直されるので、GAS 側も更新する（`gas/README.md`）。
@@ -120,7 +120,7 @@ npm test               # 全部緑になってからコミット
 - お支払いは受け取り時（現金・クレジットカード・PayPay）。取り置きは3日（仮）。**ネット決済は後から**：外部の決済ページ（PayPal・Stripe Payment Links など。業者の選定と契約はオーナー判断）の URL を商品の `payment_link` に入れると、その商品にだけ「カードで支払う（外部サイト）」ボタンが出る（商品ページと、注文の確認画面のその商品の行）。
 
 ## 配送料（郵便番号 → 距離 → 料金）
-- 料金は `data/prices.json` の `delivery_tiers`（店のチラシの表）。式は `js/delivery-core.js`：店（`STORE_LATLNG`）からの直線距離（haversine）× 1.3 を道のりの目安にし、区分の境目 ±1km は「お届けの前に確定」と出す。表に無い番号・50km 超は要相談。送料無料の商品は 50km 以内なら 0 円。
+- 料金は `data/prices.json` の `delivery_tiers`（ネット注文の表。店頭でご購入の場合の表 `delivery_tiers_store` は料金ページに並べて出すだけで、計算には使わない）。式は `js/delivery-core.js`：店（`STORE_LATLNG`）からの直線距離（haversine）× 1.3 を道のりの目安にし、区分の境目 ±1km は「お届けの前に確定」と出す。表に無い番号・50km 超は要相談。送料無料の商品は 50km 以内なら 0 円。
 - 郵便番号 → 緯度経度の表 `data/postal/<上3桁>.json`（`{ "8611112": [32.8872, 130.7891] }`）は生成物。熊本・福岡・大分・佐賀・長崎・宮崎・鹿児島の郵便番号のうち、店から直線 60km 以内だけを入れている。
 - 作り直し（郵便番号の改定時など）：
   ```sh

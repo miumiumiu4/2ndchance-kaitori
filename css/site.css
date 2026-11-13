@@ -101,6 +101,7 @@ table.price { width: 100%; border-collapse: collapse; font-size: 1rem; }
 table.price th, table.price td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; }
 table.price th { background: var(--green-soft); font-size: .9rem; }
 table.price td.num { text-align: right; white-space: nowrap; font-weight: 800; }
+table.price caption { text-align: left; font-weight: 900; padding: 4px 0 8px; caption-side: top; }
 table.price-kinds { min-width: 600px; font-size: .95rem; }
 table.price-kinds th, table.price-kinds td:first-child { white-space: nowrap; }
 table.price-kinds th:first-child, table.price-kinds td:first-child { position: sticky; left: 0; background: var(--card); }

@@ -1,5 +1,5 @@
 // 配送料の計算（純粋関数だけ）。購入商品の配送（販売ページの注文フォーム）で使う。
-// 料金表は data/prices.json の delivery_tiers（店のチラシ）。郵便番号 → 緯度経度は data/postal/<上3桁>.json。
+// 料金表は data/prices.json の delivery_tiers（ネット注文の表。店頭購入の delivery_tiers_store は料金ページの表示だけ）。郵便番号 → 緯度経度は data/postal/<上3桁>.json。
 // 道のりの目安 ＝ 店からの直線距離（haversine）× ROAD_FACTOR。境界 ±BOUNDARY_KM は「お届け時に確定」の注記つき。
 
 export const ROAD_FACTOR = 1.3;

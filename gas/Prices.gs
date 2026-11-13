@@ -301,7 +301,49 @@ var PRICES = {
   "delivery_tiers": [
     {
       "max_km": 10,
+      "fee": 2000,
+      "label": "10km以内"
+    },
+    {
+      "max_km": 15,
+      "fee": 3000,
+      "label": "15km以内"
+    },
+    {
+      "max_km": 20,
+      "fee": 4000,
+      "label": "20km以内"
+    },
+    {
+      "max_km": 25,
+      "fee": 5000,
+      "label": "25km以内"
+    },
+    {
+      "max_km": 30,
+      "fee": 6000,
+      "label": "30km以内"
+    },
+    {
+      "max_km": 50,
+      "fee": 10000,
+      "label": "30〜50km"
+    },
+    {
+      "max_km": null,
+      "fee": null,
+      "label": "50km超（要相談）"
+    }
+  ],
+  "delivery_tiers_store": [
+    {
+      "max_km": 3,
       "fee": 0,
+      "label": "3km以内"
+    },
+    {
+      "max_km": 10,
+      "fee": 2000,
       "label": "10km以内"
     },
     {
