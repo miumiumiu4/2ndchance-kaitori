@@ -10,10 +10,12 @@
 | `Prices.gs` | 価格表。`data/prices.json` から自動生成 | `node tools/build.mjs`（手で直さない） |
 | `ShopCore.gs` | 販売商品の金額の式。`js/shop-core.js` から自動生成 | `node tools/build.mjs`（手で直さない） |
 | `Shop.gs` | 販売商品の表。`data/shop.json` から自動生成 | `node tools/build.mjs`（手で直さない） |
+| `Admin.gs` | 管理画面（`/admin/`）の受け口：ログイン・読み込み・保存（GitHub へコミット）・受付が main の価格表と商品表を使う仕組み | このリポジトリで直す |
+| `AdminCore.gs` | 管理画面の確かめ・変更点の要約など。`js/admin-core.js` から自動生成 | `node tools/build.mjs`（手で直さない） |
 
 ## 初回の手順
 1. 受付用の Google スプレッドシートを新しく作る（シート「受付」「メール会員」「配送料ログ」「集計」は最初の受付で自動で作られる）。
-2. Apps Script のプロジェクトを新しく作り、`Code.gs`・`QuoteCore.gs`・`Prices.gs`・`ShopCore.gs`・`Shop.gs` の5つを同じ名前で置く（clasp を使う場合は `.clasp.json` をコミットしない）。
+2. Apps Script のプロジェクトを新しく作り、`Code.gs`・`QuoteCore.gs`・`Prices.gs`・`ShopCore.gs`・`Shop.gs`・`Admin.gs`・`AdminCore.gs` の7つを同じ名前で置く（clasp を使う場合は `.clasp.json` をコミットしない）。
 3. 「プロジェクトの設定」→「スクリプト プロパティ」に次を入れる。**値はこのリポジトリ・Issue・PR に書かない。**
 
    | プロパティ名 | 中身 | 必須 |
@@ -23,6 +25,8 @@
    | `SITE_NAME` | メールの差出人名（既定 `2nd chance recycle`） | 任意 |
    | `MAX_PER_DAY` | 1日の受付上限（既定 50） | 任意 |
    | `LOG_MAX_PER_DAY` | 配送料ログの1日の上限（既定 500。超えた分は黙って捨てる） | 任意 |
+   | `ADMIN_PASS_HASH` | 管理画面のパスコードの SHA-256（下の「管理画面の設定」） | 管理画面を使うなら必須 |
+   | `ADMIN_GITHUB_TOKEN` | 管理画面が GitHub に保存するための fine-grained token（下の「管理画面の設定」） | 管理画面を使うなら必須 |
    | `MAILER_API_KEY` | **予約**（今は使わない）。メール配信サービス（MailerLite 等）への連携を足すときの API キーの置き場 | — |
 
    `SEQ_DATE`・`SEQ_N`（受付番号の連番）と `LOG_DATE`・`LOG_N`（配送料ログの件数）は自動で作られる（手で入れない）。
@@ -33,9 +37,28 @@
 6. 出てきたウェブアプリの URL（`/exec` で終わる）を、GitHub の Actions Variables `CFG_GAS_URL` に入れる（README「設定手順」）。リポジトリの `js/config.js` には書かない。
 
 ## 更新の手順
+- 管理画面（`ADMIN_GITHUB_TOKEN` あり）で直した価格表・商品表は、出し直さなくても受付の照合に効く（上の「管理画面の設定」）。
 - 価格表（`data/prices.json`）や式（`js/quote-core.js`）、販売商品（`data/shop.json`・`js/shop-core.js`）を変えたら、`node tools/build.mjs` で `QuoteCore.gs`・`Prices.gs`・`ShopCore.gs`・`Shop.gs` を作り直し、Apps Script に反映する（商品の入れ替え・売切れのたびに `Shop.gs` も更新。古いままだと「照合」が「差あり」になり、売切れの商品の注文を断れない）。
 - 反映は「デプロイを管理」→ 今のデプロイを編集 →「新バージョン」。**新しいデプロイを作らない**（URL が変わり、フォームが送れなくなる）。
 - 画面と受付で価格表の版がずれると、シートの「照合」列が「差あり」になる。`data/prices.json` の `updated` を変えたら、必ず GAS 側も更新する。
+
+## 管理画面の設定
+`/admin/` からの保存を受けて、GitHub の main にコミットする（README「管理画面の設定」に全体の流れ）。
+
+1. **`ADMIN_PASS_HASH`**：手元で `node tools/passhash.mjs` を実行し、パスコードを2回入れる（画面に出ない。10文字以上）。出た64桁の16進をこのプロパティに貼る。計算は `sha256("2ndchance-admin:" + パスコード)`（`js/admin-core.js` の `ADMIN_PASS_PREFIX`）。パスコードもハッシュもリポジトリ・Issue・PR・チャットに書かない。
+2. **`ADMIN_GITHUB_TOKEN`**：GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token。Repository access は **Only select repositories → `2ndchance-kaitori`**、Repository permissions は **Contents：Read and write だけ**（Metadata は自動で Read-only）。有効期限は1年までにし、切れる前に作り直す。出た値をこのプロパティに貼る。
+3. `Admin.gs`・`AdminCore.gs` を足して保存 →「デプロイを管理」→ 今のデプロイを編集 → **「新バージョン」**（新しいデプロイは作らない）。外部への接続（`UrlFetchApp`）の許可画面が出るので、オーナーのアカウントで許可する。
+4. 試す：`/admin/` でログイン → 何も変えずに「保存する」で「変更はありません」、お知らせを1文字直して保存 → オーナーにメール、GitHub に「管理画面：お店の情報を更新（…）」のコミット、1〜2分でトップに出る。
+
+| 送ってくる kind | 中身 | 返す物 |
+|---|---|---|
+| `admin_login` | `passcode`・`who`（`共同代表`／`オーナー`） | `token`（64桁。CacheService に置き、使うたびに延ばしてログインから8時間で切る）。5回続けて間違えると15分ロック（`ADMIN_FAILS`）し、オーナーへメール |
+| `admin_load` | `token` | `files`：`shop`・`prices`・`site`・`results`・`items` の `{sha, data}`（GitHub の main から） |
+| `admin_save` | `token`・`target`（`shop`／`prices`／`site`／`results`）・`data`・`base_sha`・`photos`（`[{path, base64}]`） | 確かめ（`AdminCore.validateData`。金額表は id・品目・間取りが変わっていないか、個人情報らしき文字が無いか、写真は JPEG・EXIF を取り除く・長辺 1200／480px）→ `updated` を今日に → Git Data API で**1つのコミット**（blob → tree → commit → ref）→ オーナーへメール（変更点・Actions の URL・コミットの URL）。`base_sha` が今と違えば保存せず「読み直して」。返り値は `commit`・`commit_url`・`actions_url`・`changes`・`sha`・`data` |
+| `admin_logout` | `token` | 印を消す |
+
+- `ADMIN_GITHUB_TOKEN` があると、受付（`doPost`・`doGet`）は main の `data/prices.json`・`data/shop.json` を読んで照合に使う（CacheService に5分。読めなければ `Prices.gs`・`Shop.gs`）。管理画面で金額や売切れを直しても、Apps Script を出し直さなくてよい。式（`QuoteCore.gs`・`ShopCore.gs`）を変えたときは今までどおり出し直す。
+- トークンの値・パスコードはメールにもログにも出さない。
 
 ## シート
 | シート | 中身 |

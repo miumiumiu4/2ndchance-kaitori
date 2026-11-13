@@ -24,6 +24,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # data/*.json だけが変わった push（管理画面の保存）でも、ここで生成物を作り直してからテストする。
+      # 公開の写し（_site）は下の --out が data から組み立てるので、生成物のコミット（rebuild.yml）を待たずに正しい中身が出る。
       - name: 組み立て
         run: node tools/build.mjs
       - name: テスト

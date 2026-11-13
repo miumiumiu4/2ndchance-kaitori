@@ -177,3 +177,31 @@ test("公開用の写し：CFG_HOURS が data/site.json より勝つ", () => {
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test("管理画面：noindex・robots.txt で Disallow・ナビと sitemap と llms.txt に出さない・外部 CDN なし", () => {
+  const html = read("admin/index.html");
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
+  assert.match(html, /css\/site\.css\?v=[0-9a-f]{8}/, "CSS の版番号を build が付ける");
+  assert.match(html, /src="\.\.\/js\/admin\.js"/);
+  assert.ok(!/https?:\/\//.test(html.replace(/<!--[\s\S]*?-->/g, "")), "外部の読み込みなし");
+  assert.match(read("robots.txt"), /^Disallow: \/admin\/$/m);
+  for (const p of [...PAGES, "sitemap.xml", "llms.txt"]) assert.ok(!read(p).includes("admin/"), p + " に admin/ が出ていない");
+  const js = read("js/admin.js");
+  assert.ok(!/https?:\/\/(?!github)/.test(js.replace(/https:\/\/〜/g, "")), "admin.js は外部を読まない");
+  assert.match(js, /from "\.\/admin-core\.js"/);
+});
+
+test("自動の刷り直し：pages.yml は組み立て → テスト → 公開の写し、rebuild.yml は data の push で生成物をコミットし直し、build: では回らない", () => {
+  const pages = read(".github/workflows/pages.yml");
+  const iBuild = pages.indexOf("run: node tools/build.mjs\n"), iTest = pages.indexOf("run: npm test"), iOut = pages.indexOf("run: node tools/build.mjs --out _site");
+  assert.ok(iBuild > 0 && iBuild < iTest && iTest < iOut, "組み立て → テスト → 公開の写し");
+  const daily = read(".github/workflows/publish-daily.yml");
+  assert.ok(daily.indexOf("run: node tools/build.mjs\n") < daily.indexOf("run: npm test"));
+  const rb = read(".github/workflows/rebuild.yml");
+  assert.match(rb, /- "data\/\*\*"/);
+  assert.match(rb, /- "assets\/shop\/\*\*"/);
+  assert.match(rb, /!startsWith\(github\.event\.head_commit\.message, 'build:'\)/);
+  assert.match(rb, /git commit -m "build: /);
+  assert.match(rb, /contents: write/);
+  assert.match(rb, /node tools\/build\.mjs\n\s+npm test/);
+});

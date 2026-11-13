@@ -13,6 +13,9 @@
 | `price/` | 料金目安・買取実績 |
 | `shop/` | 販売中の商品の一覧と**注文フォーム**（`#order`）。商品ごとのページ `shop/<id>/` は build が `data/shop.json` から作る（コミットする） |
 | `privacy/` | 個人情報の取扱い（**仮**。オーナー確定前） |
+| `admin/` | **管理画面**（商品・金額表・お店の情報・買取実績を直して保存 → 1〜2分で公開に反映）。ナビ・sitemap に出さず、`noindex`・robots.txt で `Disallow`。下の「管理画面の設定」 |
+| `js/admin.js`・`js/admin-core.js` | 管理画面の画面と、確かめ・変更点の要約・JSON の書き方・ログインの回数・写真の確かめ（純粋関数。GAS は `gas/AdminCore.gs` で同じ式） |
+| `tools/passhash.mjs` | 管理画面のパスコード → GAS のプロパティ `ADMIN_PASS_HASH` に入れるハッシュ |
 | `404.html` | 見つからないページ |
 | `css/site.css` | 見た目（モバイル優先・文字大きめ・コントラスト 4.5 以上） |
 | `js/config.js` | 設定（サイト名・URL・LINE・電話・GAS・店の住所と位置・エアコン送客） |
@@ -38,7 +41,7 @@
 | `tools/md.mjs`・`tools/blog.mjs` | 記事の Markdown 変換（依存なし）と、公開してよい記事の選び出し |
 | `tools/new-post.mjs` | 記事のひな形を作る |
 | `tools/screens.mjs` | 画面の確認（Playwright があるときだけ。`screens/` に撮影） |
-| `tests/` | `npm test`（式・生成物が最新か・data の妥当性・秘密 grep・相対リンク・ブログの予約公開） |
+| `tests/` | `npm test`（式・生成物が最新か・data の妥当性・秘密 grep・相対リンク・ブログの予約公開・管理画面と GAS の受け口）。式の試験は `tests/fixtures/`（価格表・商品表などの写し）を使い、`data/*.json` は形だけを確かめる（管理画面で中身が変わっても CI が止まらない） |
 
 ## 毎回の作業
 ```sh
@@ -97,6 +100,7 @@ npm test               # 全部緑になってからコミット
 3. **12月の凍結明け**：`AIRCON_REF_PARAM` を `partner`、`AIRCON_REF_CODE` を会社番号（`C0xx`）にして、同じく build → test → push。
 
 ### 2. `data/prices.json`
+- 金額は**管理画面**（`/admin/` の「金額表」）で共同代表が直せる（値だけ。品目・区分の追加と削除はここで手で）。
 - 金額は共同代表が決めたものだけ入れる。`null` の間は画面・料金表・AI 向けが「要相談」と出す。
 - 今は**仮の金額**（2026-11-09 共同代表との打合せで決めた目安。それ以前は 2026-11-07 オーナー指示の一般的な相場）。`provisional: true` のあいだ、料金ページ・トップの料金要約・フォームの概算の上に「仮の目安（調整中）」の帯と `provisional_note` を出し、llms.txt・JSON-LD・概算 API の返り値にも仮の旨が載る。正式な金額が来たら値を差し替え、`provisional` を `false` にする（帯は自動で消える）。
 - 片付けは種類ごとの間取り表 `cleanup_by_kind`（`ihin`・`seizen`・`gomiyashiki`・`akiya`。どれも同じ間取りの並び）。倉庫・草刈りは `other_cleanup`（`per_tsubo` 坪あたり `price_from`。10坪単位で切り上げ）。
@@ -108,6 +112,39 @@ npm test               # 全部緑になってからコミット
 
 ### 3. GAS（フォームの送信先）
 `gas/README.md` の手順で、プロパティ `SHEET_ID`・`OWNER_EMAIL`（任意で `SITE_NAME`・`MAX_PER_DAY`）を入れ、ウェブアプリ（実行：自分／アクセス：全員）として公開し、URL を `CFG_GAS_URL` に入れる。
+
+## 管理画面の設定
+例え話：サイトは**印刷したチラシ**、管理画面は**原稿を直す机**。机で直して「保存」を押すと、**1〜2分で刷り直しが自動で終わる**。
+
+### 何がどう動くか（自動の刷り直し）
+1. `/admin/` でパスコードを入れてログイン（GAS が照合し、8時間有効の印を返す。5回続けて間違えると15分ロックし、オーナーへメール）。
+2. 直して「保存する」→ 画面と GAS が同じ式（`js/admin-core.js`／`gas/AdminCore.gs`）で確かめ、GAS が `data/*.json`（と写真 `assets/shop/<id>.jpg`・`<id>-480.jpg`）を **1つのコミット**で main に積む（文は「管理画面：商品を更新（共同代表・…）」）。オーナーへ変更点のメール。
+3. その push で `.github/workflows/pages.yml` が動き、**組み立て（`node tools/build.mjs`）→ テスト → 公開用の写し（`--out _site`）→ 公開**。公開の写しは data から組み立てるので、生成物のコミットを待たずに正しいページが出る（1〜2分）。
+4. 同じ push で `.github/workflows/rebuild.yml` が生成物（`shop/<id>/`・各ページの差し込み・`gas/*.gs`・`js/site.js`・sitemap・llms.txt）を作り直し、`build: …` のコミットで main に積み直す（次の PR の `build --check` と、GAS へ貼る `gas/*.gs` のため）。**輪にならない**：`build:` で始まるコミットでは動かない／`GITHUB_TOKEN` の push はほかのワークフローを起こさない／差が無ければ何も積まない。
+5. 管理画面の「反映を確認」は、公開中の `data/<file>.json` を読み、保存した中身と同じかを比べる。
+6. 受付（フォーム・注文）の照合は、`ADMIN_GITHUB_TOKEN` があれば GAS が main の `data/prices.json`・`data/shop.json` を5分ごとに読むので、金額・売切れを直しても Apps Script を出し直す必要はない（読めなければ `Prices.gs`・`Shop.gs` のまま）。
+
+直せるもの：商品（名前・価格・割引・年式・状態・大きさ・ひとこと・送料無料・販売中／取り置き中／売切れ・カード払いのページ・写真・追加・削除。削除しても写真のファイルは残す）、金額表（値だけ。品目・区分・間取りの追加と削除は開発担当）、お店の情報（営業時間・お知らせ・上部の帯・メール会員の特典・ご紹介キャンペーン）、買取実績。電話番号・メール・お客様の名前・番地らしき文字は保存のときに止まる。写真はスマホの中で長辺 1200px／480px の JPEG に作り直す（EXIF・位置情報は残らない。GAS でも念のため取り除く）。
+
+### 最初の設定（オーナー・1回だけ）
+1. **パスコードのハッシュ**：手元で `node tools/passhash.mjs`（パスコードを2回聞かれる。10文字以上）→ 出た64桁を GAS のスクリプト プロパティ `ADMIN_PASS_HASH` に貼る。パスコードは共同代表に口頭以外の安全な方法で伝える。変えるときは同じ手順でハッシュを差し替えるだけ。
+2. **GitHub のトークン**（fine-grained token）：GitHub 右上のアイコン → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token。
+   - Token name：`2ndchance 管理画面`／Expiration：1年（切れる前にカレンダーで知らせる）
+   - Repository access：**Only select repositories** → `2ndchance-kaitori` だけ
+   - Permissions → Repository permissions → **Contents：Read and write**（ほかは触らない。Metadata は自動で Read-only）
+   - Generate → 出た値を GAS のスクリプト プロパティ `ADMIN_GITHUB_TOKEN` に貼る（ほかの所には書かない）
+3. **GAS を更新**：Apps Script に `Admin.gs` と `AdminCore.gs` を足し、`Code.gs`・生成物（`gas/*.gs`）を最新にする → 「デプロイを管理」→ 今のデプロイを編集 →「新バージョン」。**新しいデプロイは作らない**（URL が変わる）。外部への接続（GitHub）の許可画面が出るので、オーナーのアカウントで許可する。
+4. `https://<公開URL>/admin/` を共同代表に伝える（ホーム画面に追加すると便利）。
+
+| GAS のプロパティ | 中身 |
+|---|---|
+| `ADMIN_PASS_HASH` | パスコードの SHA-256（`tools/passhash.mjs`） |
+| `ADMIN_GITHUB_TOKEN` | このリポジトリだけ・Contents の Read and write だけの fine-grained token |
+| `ADMIN_REPO`・`ADMIN_BRANCH` | 任意（既定 `miumiumiu4/2ndchance-kaitori`・`main`） |
+
+- main にブランチ保護（PR 必須）を付けると、管理画面の保存は通らなくなる。付けるときは管理画面の扱いを先に決める。
+- 元に戻したいとき：保存のメールにあるコミットの URL を開発担当へ（`git revert` で戻すと、同じ自動の刷り直しで公開も戻る）。
+- `data/*.json` を手で直してもよい（管理画面と同じ形）。管理画面は保存のときに `stringifyData` の形（表の1行は1行）で書く。
 
 ## 公開手順（GitHub Pages）
 1. GitHub にリポジトリを作り、push する。
@@ -123,7 +160,7 @@ npm test               # 全部緑になってからコミット
 
 ## 販売ページ（段階1：注文受付のみ）
 - 商品は `data/shop.json`（`id`・`name`・`price`（税込、`null`＝確認中）・`sale`（割引率）・`year`・`condition`・`size`・`free_shipping`・`status`（`available`／`reserved`／`sold`）・`photos`・`note`・`payment_link`）。写真は `tools/photos.py` で作る（`assets/shop/README.md`）。
-- 入れ替え・売切れは `data/shop.json` を直して `node tools/build.mjs` → `npm test` → push。GAS の `Shop.gs` も更新する（`gas/README.md`）。
+- 入れ替え・売切れは**管理画面**（`/admin/`）から（写真もスマホで撮って追加できる）。手で直すときは `data/shop.json` を直して `node tools/build.mjs` → `npm test` → push。
 - **カート**：一覧の各商品と商品ページに「カートに入れる」（押すと「カートから外す」。中古品は1点ものなので数量なし。売切れ・取り置き中は押せない）。カートは `sessionStorage`（タブを閉じると消える）で一覧と商品ページが共有し、1点以上あると固定バーの上に「カートを見る（n点）」が出る。注文フォームの「申し込む商品」に写真つきの行・「外す」・合計。空なら送信ボタンは押せない。
 - 金額：商品代の合計＝各商品の価格の和（確認中の商品は「＋確認中の商品」）。配送料は1注文で1回分：カートが全部送料無料なら 50km 以内は無料、1点でも送料無料でなければ郵便番号の通常の配送料。式は `js/shop-core.js` の `cartTotal` など（GAS も `ShopCore.gs` で同じ式）。
 - お支払いは受け取り時（現金・クレジットカード・PayPay）。取り置きは3日（仮）。**ネット決済は後から**：外部の決済ページ（PayPal・Stripe Payment Links など。業者の選定と契約はオーナー判断）の URL を商品の `payment_link` に入れると、その商品にだけ「カードで支払う（外部サイト）」ボタンが出る（商品ページと、注文の確認画面のその商品の行）。

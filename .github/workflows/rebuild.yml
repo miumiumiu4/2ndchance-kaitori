@@ -1,0 +1,58 @@
+# 管理画面（/admin/）の保存のあと、生成物（shop/<id>/・各ページの <!--build:--> の中・gas/*.gs・js/site.js・sitemap.xml・llms.txt）を
+# 組み立て直して main にコミットし直す。公開そのものは pages.yml が同じ push で行う（組み立て → テスト → 公開用の写し）ので、
+# このコミットはリポジトリの生成物を data とそろえるためのもの（次の PR の build --check と、GAS へ貼る gas/*.gs のため）。
+#
+# 輪にならない仕組み：
+#   1) このワークフローが積むコミットの文は「build:」で始まり、下の if で飛ばす
+#   2) GITHUB_TOKEN で push したコミットは、ほかのワークフロー（このファイル・pages.yml）を起こさない（GitHub の決まり）
+#   3) 組み立て直して差が無ければ何も積まない
+name: Rebuild after admin save
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/**"
+      - "assets/shop/**"
+      - "assets/items/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'build:') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 組み立て直して、テストが通ればコミット（main が先に進んでいたら取り直して3回まで）
+        run: |
+          AT=@
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]${AT}users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            node tools/build.mjs
+            npm test
+            git add -A
+            if git diff --cached --quiet; then
+              echo "生成物は最新（コミットなし）"
+              exit 0
+            fi
+            git commit -m "build: 管理画面の変更から生成物を作り直す（$(git rev-parse --short=8 origin/main)）"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+          done
+          echo "push できませんでした" >&2
+          exit 1
