@@ -2,7 +2,7 @@
 // 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。
 var SHOP = {
   "_note": "販売中の商品（店頭・配送）。price は税込の円、null は「価格は確認中」。sale は割引率（0.1 = 10% OFF）。status は available（販売中）／reserved（取り置き中）／sold（売切れ）。payment_link に外部の決済ページの URL を入れた商品だけ「カードで支払う」ボタンが出る（今は全て空）。写真は tools/photos.py が作る。",
-  "updated": "2026-11-09",
+  "updated": "2026-11-14",
   "tax": "included",
   "hold_days": 3,
   "hold_note": "お取り置きは3日間（仮）です。",
@@ -16,6 +16,22 @@ var SHOP = {
     }
   ],
   "items": [
+    {
+      "id": "item-20261114",
+      "name": "テスト",
+      "category": "その他",
+      "price": 100,
+      "year": null,
+      "condition": "中古",
+      "size": "",
+      "free_shipping": false,
+      "status": "available",
+      "photos": [
+        "assets/shop/item-20261114.jpg"
+      ],
+      "note": "",
+      "payment_link": ""
+    },
     {
       "id": "aqua-fridge-355",
       "name": "AQUA 冷蔵庫 355L（2024年）",
