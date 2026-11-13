@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { originOnly } from "./origin.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PAGES = ["index.html", "kaitori/index.html", "kataduke/index.html", "seiri/index.html", "flow/index.html", "price/index.html", "privacy/index.html", "shop/index.html"];
+const PAGES = ["index.html", "kaitori/index.html", "kataduke/index.html", "seiri/index.html", "flow/index.html", "price/index.html", "privacy/index.html", "shop/index.html"].filter((p) => fs.existsSync(path.join(ROOT, p))); // 販売しない店は shop/ が無い
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 
 test("build の生成物が最新（node tools/build.mjs --check）", () => {

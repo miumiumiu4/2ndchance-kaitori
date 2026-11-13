@@ -143,6 +143,6 @@ test("かんたん入力のページ：noindex・同じログインの印・同�
   assert.match(js, /href="\.\.\/"[^>]*>くわしい編集/);
   assert.match(read("js/admin.js"), /href="quick\/"[^>]*>かんたん入力/);
   assert.match(read("robots.txt"), /^Disallow: \/admin\/$/m, "admin/quick/ も含まれる");
-  for (const p of ["sitemap.xml", "llms.txt", "index.html", "shop/index.html"]) assert.ok(!read(p).includes("quick/"), p);
+  for (const p of ["sitemap.xml", "llms.txt", "index.html", "shop/index.html"].filter((p) => fs.existsSync(path.join(ROOT, p)))) // 販売しない店は shop/ が無い assert.ok(!read(p).includes("quick/"), p);
   assert.ok(!read("gas/AdminCore.gs").includes("quickProductId"), "GAS は今のまま（出し直し不要）");
 });

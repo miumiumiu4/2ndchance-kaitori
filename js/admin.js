@@ -43,7 +43,7 @@ function renderLogin(msg) {
 <p>商品・金額表・お店の情報・買取実績を直す所です。保存すると、1〜2分で公開ページに反映されます。</p>
 <form class="qform" id="adm-login" novalidate>
 <label class="f" for="adm-who">どなたですか</label>
-<select id="adm-who" name="who">${A.ADMIN_ROLES.map((r) => `<option${r === S.who ? " selected" : ""}>${esc(r)}</option>`).join("")}</select>
+<select id="adm-who" name="who">${(SITE.ADMIN_ROLES || A.ADMIN_ROLES).map((r) => `<option${r === S.who ? " selected" : ""}>${esc(r)}</option>`).join("")}</select>
 <label class="f" for="adm-pass">パスコード</label>
 <input type="password" id="adm-pass" name="passcode" autocomplete="current-password" required>
 <p class="err" id="adm-login-err" role="alert"${msg ? "" : " hidden"}>${esc(msg || "")}</p>

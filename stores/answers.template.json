@@ -2,6 +2,7 @@
   "_how": "聞き取りの答えの白紙。stores/<店のid>/answers.json に写して埋める。書き方は stores/example/answers.json（架空の店）を見る。",
   "id": "",
   "repo": "",
+  "admin_roles": [],
   "q1": {
     "_q": "店名、住所、営業時間、定休日（latlng は Googleマップで店を長押しすると出る2つの数字）",
     "name": "",

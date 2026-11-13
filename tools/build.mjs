@@ -43,6 +43,8 @@ const readJSON = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
 // 店の名札（data/store.json：店名・地域・住所・位置・代表番号）と、お店の情報（data/site.json。管理画面で直せる）を設定に重ねる。
 // 優先順：CFG_*（公開の写しだけ）＞ data/site.json ＞ data/store.json ＞ js/config.js
 const STORE = readJSON("data/store.json");
+// ネット販売（/shop/）を出すか。data/store.json の shop が false の店は、販売ページ・商品ページ・ナビ・配送料の表を出さない
+const SHOP_ON = STORE.shop !== false;
 const SITE_DATA = readJSON("data/site.json");
 const SITE_KEYS = { HOURS: "hours", OPENING_HOURS_SPEC: "opening_hours_spec", OPENING_NOTE: "opening_note", MAIL_PERK_TEXT: "mail_perk_text", NOTICE: "notice" };
 // 公開用の写しにだけ、環境変数（GitHub の Actions Variables）で値を差し込む
@@ -91,6 +93,10 @@ AREAS.fee_note = tpl(AREAS.fee_note);
 for (const m of AREAS.methods || []) m.note = tpl(m.note);
 const POSTS = publishedPosts(loadPosts(POSTS_DIR, ROOT), TODAY);
 
+// 管理画面のログインで選ぶ名前（data/store.json の admin_roles。無ければ js/admin-core.js の既定）
+function adminRoles() {
+  return Array.isArray(STORE.admin_roles) && STORE.admin_roles.filter((r) => typeof r === "string" && r.trim()).length ? STORE.admin_roles.filter((r) => typeof r === "string" && r.trim()) : null;
+}
 // 家電の年式の目安の1文（冷蔵庫の year_limit。空なら出さない）
 function yearLimitSentence() {
   const f = (PRICES.buyback_items || []).find((b) => b.id === "fridge");
@@ -117,6 +123,7 @@ const PAGES = [
   { file: "privacy/index.html", path: "privacy/", nav: null, title: "個人情報の取扱い", meta: "個人情報の取扱い（仮の文面。オーナー確定前）。", desc: "個人情報の取扱いについて。", form: "kaitori/#form-a", services: [] }
 ];
 for (const p of PAGES) { p.desc = tpl(p.desc); p.meta = tpl(p.meta); }
+if (!SHOP_ON) PAGES.splice(PAGES.findIndex((p) => p.shop), 1);
 
 const SERVICES = {
   buyback: { name: "出張買取（生活家電・家具）", type: "買取", desc: "冷蔵庫・洗濯機・電子レンジ・ガスコンロ・ソファ・ダイニングテーブル・食器棚・カーペット・カーテンなどを訪問して査定し、買い取ります。" + yearLimitSentence() + perksSentence(), page: "kaitori/" },
@@ -335,12 +342,12 @@ function priceTables(page, rel) {
 <p class="muted">状態による目安${PRICES.provisional ? "（仮）" : ""}：良い＝${Math.round((PRICES.condition_factor.good || 0) * 100)}%／普通＝${Math.round((PRICES.condition_factor.normal || 0) * 100)}%／難あり＝${Math.round((PRICES.condition_factor.damaged || 0) * 100)}%（上限に対して。確認中）。他で値段がつかない物でも、年式の目安以内なら左の最低額はお付けします。年式の目安を超えた家電は回収扱いです。</p>
 <h3 id="perks" style="margin-top:18px">買取の特典</h3>
 ${perksBox()}
-<h3 id="delivery" style="margin-top:18px">購入商品の配送料（店からの距離）</h3>
+${SHOP_ON ? `<h3 id="delivery" style="margin-top:18px">購入商品の配送料（店からの距離）</h3>
 <div class="${hasStore ? "grid-2 delivery-tables" : ""}">
 ${deliveryTable("ネット注文（販売ページ）の場合", PRICES.delivery_tiers)}
 ${hasStore ? deliveryTable("店頭でご購入の場合", PRICES.delivery_tiers_store) : ""}
 </div>
-<p class="muted">距離は道のりの目安です。${deliveryNote()}送料無料の商品は50km以内なら無料です。郵便番号を入れると<a href="${rel}shop/#order">販売ページの注文フォーム</a>でネット注文の目安が出ます。</p>`;
+<p class="muted">距離は道のりの目安です。${deliveryNote()}送料無料の商品は50km以内なら無料です。郵便番号を入れると<a href="${rel}shop/#order">販売ページの注文フォーム</a>でネット注文の目安が出ます。</p>` : ""}`;
 }
 
 // 配送料が無料の区分（fee 0）の一番遠い距離（なければ null）
@@ -559,6 +566,14 @@ const FRAGMENTS = {
   "shop-note": () => shopNote(),
   "shop-extras": (p, rel) => shopExtras(p, rel),
   "shop-top": (p, rel) => shopTop(rel),
+  // トップの「販売中の商品」の節（ネット販売をしない店では出さない）
+  "shop-section": (p, rel) => (SHOP_ON ? `<section class="section" aria-labelledby="h-shop">
+  <h2 id="h-shop">販売中の商品</h2>
+  <p>店頭で販売している家電・家具の一部です。配送もできます（郵便番号で配送料の目安が出ます）。</p>
+<!--build:shop-top-->
+${shopTop(rel)}
+<!--/build:shop-top-->
+</section>` : ""),
   hours: () => (CONFIG.HOURS ? esc(CONFIG.HOURS) : PENDING),
   notice: () => noticeBox(),
   campaign: (p, rel) => campaignBanner(p, rel),
@@ -612,7 +627,7 @@ function shopTop(rel) {
 function sitemap() {
   const loc = (p) => (CONFIG.SITE_URL ? CONFIG.SITE_URL + p : p || "./");
   const head = CONFIG.SITE_URL ? "" : "<!-- SITE_URL が未設定のため相対パス。公開URLを決めたら CFG_SITE_URL（または config.js）に入れて build する -->\n";
-  const urls = PAGES.map((p) => `  <url><loc>${esc(loc(p.path))}</loc></url>`).concat(SHOP.items.map((it) => `  <url><loc>${esc(loc(shopItemPath(it)))}</loc></url>`)).join("\n");
+  const urls = PAGES.map((p) => `  <url><loc>${esc(loc(p.path))}</loc></url>`).concat((SHOP_ON ? SHOP.items : []).map((it) => `  <url><loc>${esc(loc(shopItemPath(it)))}</loc></url>`)).join("\n");
   const blog = [`  <url><loc>${esc(loc("blog/"))}</loc></url>`]
     .concat(blogPagePaths().slice(1).map((p) => `  <url><loc>${esc(loc(p))}</loc></url>`))
     .concat(POSTS.map((p) => `  <url><loc>${esc(loc(postPath(p)))}</loc><lastmod>${p.date}</lastmod></url>`))
@@ -658,8 +673,8 @@ ${pages}
 - [出張エリア](${u("data/areas.json")}): 市町村名と要確認フラグ、出張費・査定料。
 - [よくある質問](${u("data/faq.json")})
 - [買取実績](${u("data/results.json")}): 過去の例。最初は空。
-- [販売中の商品](${u("data/shop.json")}): 店頭で販売中の商品（id・名前・税込価格 price（null は確認中）・割引 sale・状態 status・送料無料 free_shipping・写真）。
-- [郵便番号の座標](${u("data/postal/index.json")}): 郵便番号（7桁）→ 緯度経度（上3桁ごとのファイル）。配送料の距離計算用。出典：日本郵便 郵便番号データ／Geolonia japanese-addresses（CC BY 4.0）。
+${SHOP_ON ? `- [販売中の商品](${u("data/shop.json")}): 店頭で販売中の商品（id・名前・税込価格 price（null は確認中）・割引 sale・状態 status・送料無料 free_shipping・写真）。
+` : ""}- [郵便番号の座標](${u("data/postal/index.json")}): 郵便番号（7桁）→ 緯度経度（上3桁ごとのファイル）。配送料の距離計算用。出典：日本郵便 郵便番号データ／Geolonia japanese-addresses（CC BY 4.0）。
 
 ## 記事一覧
 ${LIVE_OPEN}
@@ -697,12 +712,12 @@ ${LIVE_CLOSE}
 - 価格表：\`?action=prices\`
 - 返り値は JSON（min・max・undetermined・provisional・lines・offset_note）。
 
-## 販売中の商品（段階1：注文受付のみ）
+${SHOP_ON ? `## 販売中の商品（段階1：注文受付のみ）
 - 一覧：${u("shop/")}　商品ごと：${u("shop/<id>/")}（JSON-LD の Product・Offer つき）
 ${SHOP.items.map((it) => { const p = SC.shopPrice(it); return `- ${it.id}：${it.name}／${p.undetermined ? "価格は確認中" : p.price + "円（税込）"}／${SC.SHOP_STATUS[it.status]}${it.free_shipping ? "／送料無料（50km以内）" : ""}`; }).join("\n")}
 - ${SHOP.payment_note}${SHOP.hold_note}
 - 注文は販売ページのフォームから（AI からの注文 API は未提供）。
-
+` : ""}
 ## 注意
 - 価格はすべて目安${PRICES.provisional ? "（現在は仮の金額）" : ""}。最終額は訪問査定で人が決める。AI がお客様に金額を約束しないこと。
 - 買取では古物営業法の本人確認が必要。本人確認は訪問時に人が行う（運転免許証・マイナンバーカード等）。
@@ -730,7 +745,7 @@ ${body}
 const quoteCoreGs = () => coreGs("js/quote-core.js", "QuoteCore");
 // 画面の JS（フォーム・注文）が読む お店の情報。data/site.json と CFG_* から作る（手で直さない）
 function siteJs() {
-  const site = { SITE_NAME: CONFIG.SITE_NAME, STORE_LATLNG: CONFIG.STORE_LATLNG, TOWN: TOKENS.town, HOURS: CONFIG.HOURS || "", NOTICE: CONFIG.NOTICE || "", OPENING_NOTE: CONFIG.OPENING_NOTE || "", MAIL_PERK_TEXT: CONFIG.MAIL_PERK_TEXT || "", REFERRAL: CAMPAIGN ? { title: CAMPAIGN.title, reward_yen: CAMPAIGN.reward_yen, gift: CAMPAIGN.gift, services: CAMPAIGN.services } : null };
+  const site = { SITE_NAME: CONFIG.SITE_NAME, STORE_LATLNG: CONFIG.STORE_LATLNG, TOWN: TOKENS.town, ADMIN_ROLES: adminRoles(), HOURS: CONFIG.HOURS || "", NOTICE: CONFIG.NOTICE || "", OPENING_NOTE: CONFIG.OPENING_NOTE || "", MAIL_PERK_TEXT: CONFIG.MAIL_PERK_TEXT || "", REFERRAL: CAMPAIGN ? { title: CAMPAIGN.title, reward_yen: CAMPAIGN.reward_yen, gift: CAMPAIGN.gift, services: CAMPAIGN.services } : null };
   return `// 自動生成：tools/build.mjs が data/site.json と data/store.json から作る。手で直さない（直すのは data/site.json か管理画面、店名・位置は data/store.json）。\nexport const SITE = ${JSON.stringify(site, null, 2)};\n`;
 }
 function pricesGs() {
@@ -948,10 +963,10 @@ outputs.set("gas/ShopCore.gs", coreGs("js/shop-core.js", "ShopCore"));
 outputs.set("gas/AdminCore.gs", coreGs("js/admin-core.js", "AdminCore"));
 // 管理画面とかんたん入力（ナビ・sitemap には出さない）。CSS の版番号だけ付け直す
 for (const f of ["admin/index.html", "admin/quick/index.html"]) outputs.set(f, fillPlain(fs.readFileSync(path.join(ROOT, f), "utf8")).replace(/href="([./]*)css\/site\.css(\?v=[0-9a-f]*)?"/g, `href="$1css/site.css?v=${CSS_VER}"`));
-outputs.set("gas/Store.gs", `// 自動生成：tools/build.mjs が data/store.json から作る。手で直さない。\n// 店名（メールの差出人名の既定）と、管理画面が保存する GitHub のリポジトリ（ADMIN_REPO の既定）。秘密は入れない。\nvar STORE_INFO = ${JSON.stringify({ name: CONFIG.SITE_NAME, repo: STORE.repo || "" }, null, 2)};\n`);
+outputs.set("gas/Store.gs", `// 自動生成：tools/build.mjs が data/store.json から作る。手で直さない。\n// 店名（メールの差出人名の既定）、管理画面が保存する GitHub のリポジトリ（ADMIN_REPO の既定）、ログインで選ぶ名前。秘密は入れない。\nvar STORE_INFO = ${JSON.stringify({ name: CONFIG.SITE_NAME, repo: STORE.repo || "", admin_roles: adminRoles() || [] }, null, 2)};\n`);
 outputs.set("404.html", fillPlain(fs.readFileSync(path.join(ROOT, "404.html"), "utf8")));
 outputs.set("gas/Shop.gs", `// 自動生成：tools/build.mjs が data/shop.json から作る。手で直さない。\n// 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。\nvar SHOP = ${JSON.stringify(SHOP, null, 2)};\n`);
-for (const it of SHOP.items) { const [f, html] = shopItemPage(it); outputs.set(f, html); }
+if (SHOP_ON) for (const it of SHOP.items) { const [f, html] = shopItemPage(it); outputs.set(f, html); }
 
 // blog/ は丸ごと作り直す（消えた記事・未来日に戻した記事が残らないように）
 function writeBlog(dir) {
@@ -978,7 +993,7 @@ if (CHECK) {
 } else if (OUT) {
   // 公開用の写し（gas・tests・tools など公開しない物は除く）
   // content（未来日・下書きの記事）と blog（手元の組み立て）は写さず、blog は下でその日の分だけ作る
-  const SKIP = new Set([".git", ".github", "node_modules", "tests", "tools", "gas", "screens", "stores", "content", "blog", "package.json", "package-lock.json", "README.md", "DESIGN.md", "prices.template.json", ".gitignore", path.basename(OUT)]);
+  const SKIP = new Set([".git", ".github", "node_modules", "tests", "tools", "gas", "screens", "stores", "docs", "content", "blog", "package.json", "package-lock.json", "README.md", "DESIGN.md", "prices.template.json", ".gitignore", path.basename(OUT)]);
   fs.rmSync(OUT, { recursive: true, force: true });
   const copy = (from, to) => {
     for (const ent of fs.readdirSync(from, { withFileTypes: true })) {
@@ -1002,7 +1017,7 @@ if (CHECK) {
 } else {
   // 消した商品のページを残さない
   const keep = new Set(SHOP.items.map((it) => it.id));
-  for (const ent of fs.readdirSync(path.join(ROOT, "shop"), { withFileTypes: true })) {
+  if (fs.existsSync(path.join(ROOT, "shop"))) for (const ent of fs.readdirSync(path.join(ROOT, "shop"), { withFileTypes: true })) {
     if (ent.isDirectory() && !keep.has(ent.name)) fs.rmSync(path.join(ROOT, "shop", ent.name), { recursive: true, force: true });
   }
   let n = 0;

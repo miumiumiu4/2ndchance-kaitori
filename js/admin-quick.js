@@ -1,8 +1,9 @@
-// かんたん入力（/admin/quick/）：共同代表のスマホ用の1画面。「商品を1点ふやす」と「売切れにする」だけ。
+// かんたん入力（/admin/quick/）：店の人のスマホ用の1画面。「商品を1点ふやす」と「売切れにする」だけ。
 // ログイン（印は /admin/ と同じ sessionStorage の admin-session）・GAS の admin_login／admin_load／admin_save・
 // 確かめ（admin-core.js の validateData）・写真の作り直し（admin-photo.js：1200px と 480px の JPEG、EXIF なし）は /admin/ と同じ。
 // 送れなかったら、その操作を下書き（sessionStorage）に残して「もう一度送る」。
 import { CONFIG } from "./config.js";
+import { SITE } from "./site.js";
 import * as A from "./admin-core.js";
 import * as Q from "./admin-quick-core.js";
 import { makePhotos } from "./admin-photo.js";
@@ -59,7 +60,7 @@ function renderLogin(msg) {
 <p>商品を1点ふやす・売切れにする、だけの画面です。保存すると1〜2分でサイトに出ます。</p>
 <form class="qform" id="q-login" novalidate>
 <label class="f" for="q-who">どなたですか</label>
-<select id="q-who" name="who">${A.ADMIN_ROLES.map((r) => `<option${r === S.who ? " selected" : ""}>${esc(r)}</option>`).join("")}</select>
+<select id="q-who" name="who">${(SITE.ADMIN_ROLES || A.ADMIN_ROLES).map((r) => `<option${r === S.who ? " selected" : ""}>${esc(r)}</option>`).join("")}</select>
 <label class="f" for="q-pass">パスコード</label>
 <input type="password" id="q-pass" name="passcode" autocomplete="current-password" required>
 <p class="err" id="q-login-err" role="alert"${msg ? "" : " hidden"}>${esc(msg || "")}</p>

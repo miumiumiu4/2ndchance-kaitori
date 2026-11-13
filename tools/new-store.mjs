@@ -95,6 +95,9 @@ const store = {
   latlng: q1.latlng,
   tel: str(q2.tel),
   repo: str(A.repo),
+  shop: !!A.q12,
+  // 管理画面のログインで選ぶ名前（1つ目が店の人。既定は「店主」「運営」）
+  admin_roles: Array.isArray(A.admin_roles) && A.admin_roles.map(str).filter(Boolean).length ? A.admin_roles.map(str).filter(Boolean) : ["店主", "運営"],
   kobutsu: { commission: str(q3.commission), number: str(q3.number), holder: str(q3.holder) },
   // 買取ページの「最低額のお約束」：Q4 で最低額と年式の目安の両方を答えた店だけ
   min_price_promise: isNum(q4.min_price) && isNum(q4.year_limit) ? `他で値段がつかなかった物でも、年式の目安（家電は${q4.year_limit}年以内）に入っていれば、最低${q4.min_price.toLocaleString("ja-JP")}円はお付けします。` : ""
@@ -229,7 +232,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(OUT, "package.json"), "utf8"));
 pkg.name = A.id;
 pkg.description = `${store.name}（${area}）買取・片付けサイト。量産の型（2ndchance-kaitori）から作成。`;
 write("package.json", pkg);
-if (!A.q12) todo.push("Q12 ネット販売なし → 販売ページ（/shop/）は「商品なし」で出る。ナビから外すかは型の宿題");
+if (!A.q12) fs.rmSync(path.join(OUT, "shop"), { recursive: true, force: true }); // 販売しない店：販売ページを置かない（ナビ・配送料の表も build が出さない）
 if (A.q12) todo.push("Q12 ネット販売あり → 配送料の郵便番号表（data/postal/）をこの店の位置で作り直す：node tools/build-postal.mjs --db … --prefs " + q1.region);
 
 // ---------- 組み立てと試験 ----------

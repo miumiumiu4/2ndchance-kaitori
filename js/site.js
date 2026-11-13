@@ -6,6 +6,10 @@ export const SITE = {
     130.7891
   ],
   "TOWN": "合志市",
+  "ADMIN_ROLES": [
+    "共同代表",
+    "オーナー"
+  ],
   "HOURS": "10:00〜19:00（年中無休）",
   "NOTICE": "",
   "OPENING_NOTE": "料金は共同代表の確認を経た仮の目安です。LINE は準備中です。",

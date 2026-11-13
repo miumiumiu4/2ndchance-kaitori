@@ -1,5 +1,5 @@
 {
-  "_note": "店の名札（店ごとに差し替える1枚）。tools/build.mjs が全ページ・JSON-LD・llms.txt・js/site.js に差し込む。量産のときは tools/new-store.mjs が聞き取りの答えから作る。電話は看板・チラシに出している店の代表番号だけ（携帯・メールは書かない）。公開時に Actions Variables の CFG_TEL があればそちらが勝つ。 repo は管理画面が保存する GitHub のリポジトリ（gas/Store.gs に入る）。kobutsu は古物商許可（公安委員会名・番号）で、両方入るとフッターに表示する。 id は店の短い名前（英小文字。エアコン送客の入口の印 src にも使う）。 min_price_promise は買取ページの「最低額のお約束」の1文（空なら出さない）。",
+  "_note": "店の名札（店ごとに差し替える1枚）。tools/build.mjs が全ページ・JSON-LD・llms.txt・js/site.js に差し込む。量産のときは tools/new-store.mjs が聞き取りの答えから作る。電話は看板・チラシに出している店の代表番号だけ（携帯・メールは書かない）。公開時に Actions Variables の CFG_TEL があればそちらが勝つ。 repo は管理画面が保存する GitHub のリポジトリ（gas/Store.gs に入る）。kobutsu は古物商許可（公安委員会名・番号）で、両方入るとフッターに表示する。 id は店の短い名前（英小文字。エアコン送客の入口の印 src にも使う）。 min_price_promise は買取ページの「最低額のお約束」の1文（空なら出さない）。 admin_roles は管理画面のログインで選ぶ名前（1つ目が店の人）。shop が false の店は販売ページを出さない。",
   "id": "2ndchance",
   "name": "2nd chance recycle",
   "area_label": "熊本県合志市",
@@ -20,5 +20,10 @@
     "number": "",
     "holder": ""
   },
-  "min_price_promise": "他で値段がつかなかった物でも、年式の目安（家電は5年以内・2020年以降）に入っていれば、当店では最低500円〜1,000円はお付けします。"
+  "min_price_promise": "他で値段がつかなかった物でも、年式の目安（家電は5年以内・2020年以降）に入っていれば、当店では最低500円〜1,000円はお付けします。",
+  "admin_roles": [
+    "共同代表",
+    "オーナー"
+  ],
+  "shop": true
 }
