@@ -6,6 +6,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import { shopPrice, sameGoods, orderable, findItem, parseCart, toggleCart, inCart, resolveCart, cartFreeShipping, cartDeliveryFee, cartTotal, cartGoodsText, cartTotalText, sameCart, yenText, CART_MAX } from "../js/shop-core.js";
+import { originOnly, IS_ORIGIN } from "./origin.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
@@ -27,8 +28,10 @@ test("shop.json：id 重複なし、価格は null か 0 以上、status と写�
     x.photos.forEach((p) => { assert.ok(fs.existsSync(path.join(ROOT, p)), p); assert.ok(fs.existsSync(path.join(ROOT, p.replace(/\.jpg$/, "-480.jpg"))), p + " のサムネ"); });
   });
   assert.equal(findItem(SHOP, "electric-heater").status, "sold");
-  assert.equal(REAL.hold_days, 3);
-  assert.match(REAL.payment_note, /現金・クレジットカード・PayPay/);
+  if (IS_ORIGIN) { // 見本の店の取り置き日数とお支払い（量産した店は聞き取りの答えで変わる）
+    assert.equal(REAL.hold_days, 3);
+    assert.match(REAL.payment_note, /現金・クレジットカード・PayPay/);
+  }
 });
 
 test("商品代：割引は 10円未満切り捨て、null は確認中", () => {
@@ -102,7 +105,7 @@ test("照合：画面の [{id, price}] と Shop の価格", () => {
   assert.ok(!sameCart(SHOP, []));
 });
 
-test("一覧と商品ページ：全商品のページがあり、Product と Offer の JSON-LD、売切れは帯と申込不可", () => {
+test("一覧と商品ページ：全商品のページがあり、Product と Offer の JSON-LD、売切れは帯と申込不可", originOnly, () => {
   const list = read("shop/index.html");
   REAL.items.forEach((it) => {
     assert.ok(list.includes(`href="../shop/${it.id}/"`), it.id);

@@ -5,13 +5,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeZip, postalFile, haversineKm, deliveryTierFor, deliveryQuote, deliveryFeeText, ROAD_FACTOR } from "../js/delivery-core.js";
-import { CONFIG } from "../js/config.js";
+import { originOnly } from "./origin.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
 // 金額の式の試験は tests/fixtures/prices.json（2026-11-13 の価格表の写し）で行う。data/prices.json は管理画面で変わるので、そちらは形だけを確かめる（tests/data.test.mjs）
 const PRICES = read("tests/fixtures/prices.json");
-const STORE = CONFIG.STORE_LATLNG;
+const STORE = read("data/store.json").latlng;
 // 店から真東へ d km の点（緯度はそのまま）
 const east = (d) => [STORE[0], STORE[1] + d / (111.32 * Math.cos((STORE[0] * Math.PI) / 180))];
 const tableAt = (straightKm) => ({ "8600000": east(straightKm) });
@@ -87,7 +87,7 @@ test("表に無い郵便番号・形の違う番号は要相談", () => {
   assert.equal(deliveryQuote("8611112", null, PRICES, { store: STORE }).consult, true);
 });
 
-test("data/postal：上3桁ごとの JSON、7桁 → [緯度, 経度]（小数4桁）、店の近くの番号が入っている", () => {
+test("data/postal：上3桁ごとの JSON、7桁 → [緯度, 経度]（小数4桁）、店の近くの番号が入っている", originOnly, () => {
   const idx = read("data/postal/index.json");
   assert.ok(idx.count > 1000, "件数");
   assert.match(idx.source, /Geolonia/);

@@ -100,9 +100,10 @@ test("items.json：prices.json の品目と1対1、アイコンがある", () =>
 
 test("areas.json：中心と半径、市町村に要確認フラグ", () => {
   const a = read("data/areas.json");
-  assert.equal(a.center, "熊本県合志市");
-  assert.equal(a.radius_km, 30);
-  assert.ok(a.areas.length >= 9);
+  // 中心は店の名札（data/store.json）と同じ。量産の型なので店名・半径・市町村の数は店ごとに違う
+  assert.equal(a.center, read("data/store.json").area_label);
+  assert.ok(typeof a.radius_km === "number" && a.radius_km > 0);
+  assert.ok(a.areas.length >= 1);
   a.areas.forEach((x) => { assert.equal(typeof x.needs_confirm, "boolean"); assert.match(x.name, /[市町村]$/); });
 });
 
@@ -135,7 +136,9 @@ test("data/*.json に個人情報らしき文字列が無い", () => {
     const text = fs.readFileSync(path.join(ROOT, "data", f), "utf8");
     assert.deepEqual(scanText(text), [], f);
     // 「お客様」と更新日（"updated": "YYYY-MM-DD"）は対象外
-    const plain = text.replace(/お客様/g, "").replace(/"updated":\s*"\d{4}-\d{2}-\d{2}"/g, "");
+    let plain = text.replace(/お客様/g, "").replace(/"updated":\s*"\d{4}-\d{2}-\d{2}"/g, "");
+    // 店の名札（store.json）の店の住所の番地と代表番号は、看板・チラシに出している公開情報なので除く（この2つの欄だけ）
+    if (f === "store.json") plain = plain.replace(/"street":\s*"[^"]*"/, "").replace(/"tel":\s*"[^"]*"/, "");
     for (const { name, re } of extra) assert.ok(!re.test(plain), `${f}: ${name}らしき文字列`);
   }
 });

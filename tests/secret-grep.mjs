@@ -22,7 +22,9 @@ export const PATTERNS = [
 
 // 公開してよい番号（完全一致の文字列だけ。パターンを弱めたり、パスを除外したりはしない）
 // 店の代表番号・チラシに印刷済み・オーナー指示 2026-11-13（携帯の番号はここに足さない）
-export const PUBLIC_NUMBERS = new Set(["096-206-2490"]);
+// 量産の型：店ごとの代表番号は data/store.json の tel を1つだけ許す（看板・チラシに出している番号だけを書く約束）
+const STORE_TEL = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, "data/store.json"), "utf8")).tel || ""; } catch (_) { return ""; } })();
+export const PUBLIC_NUMBERS = new Set(["096-206-2490", ...(STORE_TEL ? [STORE_TEL] : [])]);
 
 export function listFiles(dir = ROOT) {
   const out = [];

@@ -23,7 +23,8 @@ function fakeGitHub() {
   // 中身は試験用の写し（data/*.json は管理画面で変わるので）
   for (const p of ["shop", "prices", "site", "results"]) files.set("data/" + p + ".json", fs.readFileSync(path.join(ROOT, "tests/fixtures", p + ".json")));
   files.set("data/items.json", fs.readFileSync(path.join(ROOT, "data/items.json")));
-  for (const f of fs.readdirSync(path.join(ROOT, "assets/shop"))) files.set("assets/shop/" + f, Buffer.from("x"));
+  // 試験用の商品表に載っている写真（大と -480）だけを置いておく（実物の assets/shop には頼らない）
+  for (const it of JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures/shop.json"), "utf8")).items) for (const p of it.photos) for (const q of [p, p.replace(/\.jpg$/, "-480.jpg")]) files.set(q, Buffer.from("x"));
   const gh = { files, head: "c0", commits: [], blobs: new Map(), trees: new Map(), calls: [], failPatch: false };
   gh.fetch = (url, opt) => {
     const m = /^https:\/\/api\.github\.com\/repos\/miumiumiu4\/2ndchance-kaitori(\/[^?]*)(\?.*)?$/.exec(url);
@@ -140,7 +141,7 @@ test("読み込み → 商品を直して保存：1つのコミット・文・�
   shop.items[1].status = "sold";
   const id = "item-20261113-1";
   shop.items.unshift({ id, name: "テスト棚", category: "家具", price: 3000, year: null, condition: "中古", size: "", free_shipping: false, status: "available", photos: ["assets/shop/" + id + ".jpg"], note: "", payment_link: "" });
-  const pic = fs.readFileSync(path.join(ROOT, "assets/shop/industrial-fan-480.jpg")).toString("base64");
+  const pic = fs.readFileSync(path.join(ROOT, "tests/fixtures/photos/industrial-fan-480.jpg")).toString("base64");
   const r = G.post({ kind: "admin_save", token, target: "shop", data: shop, base_sha: L.files.shop.sha, photos: [{ path: "assets/shop/" + id + ".jpg", base64: pic }, { path: "assets/shop/" + id + "-480.jpg", base64: pic }] });
   assert.equal(r.ok, true, r.error + " " + (r.errors || []).join());
   assert.equal(G.gh.commits.length, 1, "写真と商品表は1つのコミット");
@@ -186,7 +187,7 @@ test("保存の確かめ：金額の形・写真（EXIF・置き場・大きさ�
   assert.equal(r.ok, false);
   assert.match(r.errors.join(), /0以上の整数/);
   const shop = L.files.shop.data;
-  const big = fs.readFileSync(path.join(ROOT, "assets/shop/aqua-fridge-355.jpg"));
+  const big = fs.readFileSync(path.join(ROOT, "tests/fixtures/photos/aqua-fridge-355.jpg"));
   r = G.post({ kind: "admin_save", token, target: "shop", data: shop, base_sha: L.files.shop.sha, photos: [{ path: "assets/shop/x-480.jpg", base64: big.toString("base64") }] });
   assert.match(r.error, /大きすぎ/);
   const exif = Buffer.concat([big.subarray(0, 2), Buffer.from([0xff, 0xe1, 0x00, 0x08]), Buffer.from("Exif\0\0"), big.subarray(2)]);
@@ -197,7 +198,7 @@ test("保存の確かめ：金額の形・写真（EXIF・置き場・大きさ�
   // EXIF 入りは GAS でも取り除いてから積む。中身から使われない写真は積まない
   const x = JSON.parse(JSON.stringify(shop));
   x.items[0].photos = ["assets/shop/x.jpg"];
-  r = G.post({ kind: "admin_save", token, target: "shop", data: x, base_sha: L.files.shop.sha, photos: [{ path: "assets/shop/x.jpg", base64: exif.toString("base64") }, { path: "assets/shop/x-480.jpg", base64: fs.readFileSync(path.join(ROOT, "assets/shop/industrial-fan-480.jpg")).toString("base64") }, { path: "assets/shop/unused.jpg", base64: big.toString("base64") }] });
+  r = G.post({ kind: "admin_save", token, target: "shop", data: x, base_sha: L.files.shop.sha, photos: [{ path: "assets/shop/x.jpg", base64: exif.toString("base64") }, { path: "assets/shop/x-480.jpg", base64: fs.readFileSync(path.join(ROOT, "tests/fixtures/photos/industrial-fan-480.jpg")).toString("base64") }, { path: "assets/shop/unused.jpg", base64: big.toString("base64") }] });
   assert.equal(r.ok, true, r.error + (r.errors || []).join());
   const tree = G.gh.trees.get(G.gh.commits.at(-1).tree).tree.map((e) => e.path).sort();
   assert.deepEqual(tree, ["assets/shop/x-480.jpg", "assets/shop/x.jpg", "data/shop.json"], "使われない写真は積まない");
@@ -246,7 +247,7 @@ test("かんたん入力の中身（js/admin-quick-core.js）も同じ admin_sav
   const G = load();
   const token = login(G).token;
   const L = G.post({ kind: "admin_load", token });
-  const pic = fs.readFileSync(path.join(ROOT, "assets/shop/industrial-fan-480.jpg")).toString("base64");
+  const pic = fs.readFileSync(path.join(ROOT, "tests/fixtures/photos/industrial-fan-480.jpg")).toString("base64");
   const op = Q.addOp({ name: "食器棚 白", price: 18000, year: 2019, free_shipping: false }, [1, 2, 3].map(() => ({ big: pic, thumb: pic })), L.files.shop.data, "2026-11-13");
   const ap = Q.applyQuickOp(L.files.shop.data, op);
   const r = G.post({ kind: "admin_save", token, ...Q.savePayload(ap, L.files.shop.sha) });

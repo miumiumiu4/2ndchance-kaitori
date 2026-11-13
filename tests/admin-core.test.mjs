@@ -17,7 +17,10 @@ const PRICES = json("tests/fixtures/prices.json");
 // 式の試験は tests/fixtures（2026-11-13 の写し）で。data/*.json は管理画面で変わる
 const SITE = json("tests/fixtures/site.json");
 const RESULTS = json("tests/fixtures/results.json");
-const shopPhotos = fs.readdirSync(path.join(ROOT, "assets/shop")).map((f) => "assets/shop/" + f);
+// 試験用の商品表（tests/fixtures/shop.json）に載っている写真（大と -480）を「ある」ことにする。実物の assets/shop には頼らない（量産した店でも走る）
+// 今の data/shop.json の確かめには、実物の assets/shop の写真を使う
+const realPhotos = fs.readdirSync(path.join(ROOT, "assets/shop")).map((f) => "assets/shop/" + f);
+const shopPhotos = SHOP.items.flatMap((it) => it.photos.flatMap((p) => [p, p.replace(/\.jpg$/, "-480.jpg")]));
 
 test("金額の入力：全角・カンマ・円は読む、空欄は null、ほかは NaN", () => {
   assert.equal(A.parseAmount("12000"), 12000);
@@ -35,7 +38,7 @@ test("今の data/*.json は全部そのまま保存できる（確かめを通�
   const items = json("data/items.json").items.map((x) => x.id);
   for (const [t, p] of Object.entries(A.ADMIN_FILES)) {
     const d = json(p);
-    assert.deepEqual(A.validateData(t, d, d, { itemIds: items, knownPhotos: t === "shop" ? shopPhotos : undefined }), [], p);
+    assert.deepEqual(A.validateData(t, d, d, { itemIds: items, knownPhotos: t === "shop" ? realPhotos : undefined }), [], p);
   }
 });
 
@@ -176,8 +179,8 @@ test("パスコードのハッシュ：tools/passhash.mjs と GAS（bytesToHex�
 });
 
 test("写真：JPEG・EXIF なし・長辺の上限。置き場は assets/shop と assets/items だけ", () => {
-  const thumb = fs.readFileSync(path.join(ROOT, "assets/shop/industrial-fan-480.jpg"));
-  const big = fs.readFileSync(path.join(ROOT, "assets/shop/industrial-fan.jpg"));
+  const thumb = fs.readFileSync(path.join(ROOT, "tests/fixtures/photos/industrial-fan-480.jpg"));
+  const big = fs.readFileSync(path.join(ROOT, "tests/fixtures/photos/industrial-fan.jpg"));
   assert.equal(A.checkPhoto(thumb, 480), "");
   assert.equal(A.checkPhoto(big, 1200), "");
   assert.match(A.checkPhoto(big, 480), /大きすぎ/);

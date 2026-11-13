@@ -12,7 +12,7 @@
  * 値（シート ID・メールアドレス）はスクリプトプロパティだけに置く。このファイルに書かない。
  *   SHEET_ID         … 受付を書くスプレッドシートの ID
  *   OWNER_EMAIL      … 受付の通知先（自動返信の返信先にもなる）
- *   SITE_NAME        … 任意。メールの差出人名（既定 2nd chance recycle）
+ *   SITE_NAME        … 任意。メールの差出人名（既定は Store.gs の店名＝data/store.json の name）
  *   MAX_PER_DAY      … 任意。1日の受付上限（既定 50。超えたら受け付けずにエラー）
  *   LOG_MAX_PER_DAY  … 任意。配送料ログの1日の上限（既定 500。超えたら黙って捨てる）
  *   MAILER_API_KEY   … 予約（未使用）。メール配信サービスへの連携は後日
@@ -41,7 +41,8 @@ var PAYMENT_NAMES = { cash: '現金', card: 'クレジットカード', paypay: 
 var UNSUB_LINE = '※ お知らせメールの配信停止は、このメールに「停止」とだけ書いて返信してください。';
 
 function props_() { return PropertiesService.getScriptProperties(); }
-function siteName_() { return props_().getProperty('SITE_NAME') || '2nd chance recycle'; }
+// 既定の店名は Store.gs（data/store.json から build が作る）。Store.gs が無い古い組み合わせでも動くように確かめてから使う
+function siteName_() { return props_().getProperty('SITE_NAME') || (typeof STORE_INFO !== 'undefined' && STORE_INFO.name) || '2nd chance recycle'; }
 function now_() { return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss'); }
 function book_() { return SpreadsheetApp.openById(props_().getProperty('SHEET_ID')); }
 

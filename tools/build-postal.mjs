@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // 郵便番号 → 緯度経度 の表（data/postal/<上3桁>.json）を作る。生成物はコミットする（毎回は作らない）。
-//   node tools/build-postal.mjs --db <posuto の postaldata.db> [--cache <取得した町域データの置き場>] [--radius 60]
+//   node tools/build-postal.mjs --db <posuto の postaldata.db> [--cache <取得した町域データの置き場>] [--radius 60] [--prefs 熊本県,福岡県]
 // 出典：
 //   郵便番号 → 市区町村・町域 … 日本郵便「郵便番号データ」（Python パッケージ posuto に同梱の SQLite。
 //                                 `pip download posuto` で得た whl を展開した posuto/postaldata.db）
 //   町域 → 緯度経度          … Geolonia「japanese-addresses」（CC BY 4.0）
 //                                 https://raw.githubusercontent.com/geolonia/japanese-addresses/master/api/ja/<都道府県>/<市区町村>.json
 // 突合：町域名が一致する行（小字が空の行を優先）→ 町域名で始まる行（丁目違い）の平均 → 市区町村の平均座標。
-// 店（js/config.js の STORE_LATLNG）から直線で radius km 以内の郵便番号だけを書き出す（軽くするため）。
+// 店（data/store.json の latlng）から直線で radius km 以内の郵便番号だけを書き出す（軽くするため）。
 // 事業所の個別番号（office_data）は使わない。
 import fs from "node:fs";
 import path from "node:path";
@@ -22,12 +22,12 @@ const DB = arg("--db");
 if (!DB) { console.error("--db <posuto の postaldata.db> を指定してください"); process.exit(2); }
 const CACHE = arg("--cache", null);
 const RADIUS = Number(arg("--radius", 60));
-const PREFS = ["熊本県", "福岡県", "大分県", "佐賀県", "長崎県", "宮崎県", "鹿児島県"];
+// 調べる都道府県。店が九州の外なら --prefs で店の県と隣の県を渡す（量産の型）
+const PREFS = String(arg("--prefs", "熊本県,福岡県,大分県,佐賀県,長崎県,宮崎県,鹿児島県")).split(",").map((x) => x.trim()).filter(Boolean);
 const BASE = "https://raw.githubusercontent.com/geolonia/japanese-addresses/master/api/ja";
 
-const { CONFIG } = await import(pathToFileURL(path.join(ROOT, "js/config.js")).href);
 const { haversineKm } = await import(pathToFileURL(path.join(ROOT, "js/delivery-core.js")).href);
-const STORE = CONFIG.STORE_LATLNG;
+const STORE = JSON.parse(fs.readFileSync(path.join(ROOT, "data/store.json"), "utf8")).latlng;
 
 async function getJSON(url, cacheName) {
   const cp = CACHE ? path.join(CACHE, cacheName) : null;

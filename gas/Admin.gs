@@ -11,7 +11,7 @@
  * スクリプトプロパティ（値はリポジトリに書かない）：
  *   ADMIN_PASS_HASH     … パスコードの SHA-256（16進）。手元で node tools/passhash.mjs を実行して作る
  *   ADMIN_GITHUB_TOKEN  … GitHub の fine-grained token（このリポジトリだけ・Contents の Read and write だけ）
- *   ADMIN_REPO          … 任意。既定 miumiumiu4/2ndchance-kaitori
+ *   ADMIN_REPO          … 任意。既定は Store.gs の repo（data/store.json）、それも空なら miumiumiu4/2ndchance-kaitori
  *   ADMIN_BRANCH        … 任意。既定 main
  *   ADMIN_FAILS         … 自動。パスコードの失敗回数とロックの時刻（手で入れない）
  * 同じフォルダの AdminCore.gs は tools/build.mjs が js/admin-core.js から生成する（手で直さない）。
@@ -21,7 +21,9 @@ var ADMIN_REPO_DEFAULT = 'miumiumiu4/2ndchance-kaitori';
 var ADMIN_LOAD = { shop: 'data/shop.json', prices: 'data/prices.json', site: 'data/site.json', results: 'data/results.json', items: 'data/items.json' };
 var ADMIN_MAX_PHOTOS = 12;
 
-function adminRepo_() { return props_().getProperty('ADMIN_REPO') || ADMIN_REPO_DEFAULT; }
+function adminRepo_() { return props_().getProperty('ADMIN_REPO') || (typeof STORE_INFO !== 'undefined' && STORE_INFO.repo) || ADMIN_REPO_DEFAULT; }
+// ログインで選ぶ名前：Store.gs（data/store.json の admin_roles）があればそれ、無ければ AdminCore の既定
+function adminRoles_() { return (typeof STORE_INFO !== 'undefined' && STORE_INFO.admin_roles && STORE_INFO.admin_roles.length) ? STORE_INFO.admin_roles : AdminCore.ADMIN_ROLES; }
 function adminBranch_() { return props_().getProperty('ADMIN_BRANCH') || 'main'; }
 function adminNow_() { return Date.now(); }
 function adminActionsUrl_() { return 'https://github.com/' + adminRepo_() + '/actions'; }
@@ -66,7 +68,8 @@ function adminLogin_(b) {
       return { ok: false, error: 'パスコードが違います（あと' + (AdminCore.LOCK_MAX - nx.fails) + '回間違えると' + AdminCore.LOCK_MINUTES + '分使えなくなります）' };
     }
     p.setProperty('ADMIN_FAILS', '{}');
-    var who = AdminCore.ADMIN_ROLES.indexOf(b.who) >= 0 ? b.who : AdminCore.ADMIN_ROLES[0];
+    var roles = adminRoles_();
+    var who = roles.indexOf(b.who) >= 0 ? b.who : roles[0];
     var token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
     adminPutSession_(token, { who: who, at: now });
     return { ok: true, token: token, who: who, hours: AdminCore.SESSION_HOURS };
