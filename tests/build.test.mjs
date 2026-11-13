@@ -47,6 +47,11 @@ test("各ページに固定 CTA（LINE・電話・フォーム）、空の設定
     assert.match(html, /class="cta-bar"/, p);
     if (!CONFIG.LINE_URL) assert.match(html, /LINEで相談<small>準備中<\/small>/, p);
     if (!CONFIG.TEL) assert.match(html, /電話する<small>準備中<\/small>/, p);
+    else {
+      assert.match(html, /<a class="btn btn-tel[^"]*" href="tel:0\d{9,10}">電話する<\/a>/, p + "：電話ボタンが押せる");
+      assert.ok(!html.includes("電話する<small>準備中"), p + "：電話が準備中のまま");
+      assert.ok(html.includes("電話：" + CONFIG.TEL), p + "：フッターに番号");
+    }
     assert.match(html, /<meta charset="UTF-8">/, p);
     assert.ok(!html.includes("�"), p + " に文字化け（U+FFFD）");
   }

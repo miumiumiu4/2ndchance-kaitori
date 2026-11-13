@@ -122,6 +122,8 @@ try {
   check("確認画面：概算が残る", confirmText.includes("¥24,000"));
   check("確認画面：メールとお知らせの受け取り", confirmText.includes("example.invalid") && confirmText.includes("受け取る"));
   const sendBtn = page.locator("#q-confirm button.btn-form");
+  check("電話ボタン：店の代表番号で押せる（tel: リンク）", (await page.locator(".cta-bar a.btn-tel").first().getAttribute("href") || "").startsWith("tel:0"));
+  check("LINE ボタン：LINE_URL 空なら「準備中」のまま", await page.locator(".cta-bar .btn-line.is-disabled").first().isVisible());
   check("送信ボタン：GAS_URL 空なら「準備中」で押せない", (await sendBtn.isDisabled()) && (await sendBtn.textContent()).includes("準備中"));
   await page.screenshot({ path: path.join(ROOT, "screens", "form-a-confirm-390.png"), fullPage: false });
   check("確認画面：固定バーの概算パネルに金額が残る", (await page.isVisible("#cta-est")) && (await page.textContent("#cta-est")).includes("¥24,000"));

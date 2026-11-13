@@ -20,6 +20,10 @@ export const PATTERNS = [
   { name: "32桁以上の hex", re: /[0-9a-fA-F]{32,}/g }
 ];
 
+// 公開してよい番号（完全一致の文字列だけ。パターンを弱めたり、パスを除外したりはしない）
+// 店の代表番号・チラシに印刷済み・オーナー指示 2026-11-13（携帯の番号はここに足さない）
+export const PUBLIC_NUMBERS = new Set(["096-206-2490"]);
+
 export function listFiles(dir = ROOT) {
   const out = [];
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -37,6 +41,7 @@ export function scanText(text) {
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(text))) {
+      if (PUBLIC_NUMBERS.has(m[0])) continue;
       const line = text.slice(0, m.index).split("\n").length;
       hits.push({ name, line, sample: m[0].slice(0, 6) + "…" });
     }
@@ -51,6 +56,8 @@ test("秘密 grep：パターンが効く（自己点検）", () => {
   assert.ok(scanText("0" + "9012345678").length, "携帯");
   assert.ok(scanText("AKfy" + "cbXYZ").length, "デプロイ ID");
   assert.ok(scanText("ab".repeat(16)).length, "hex");
+  assert.equal(scanText("電話：" + "096-206-2490").length, 0, "店の代表番号（公開）は通す");
+  assert.ok(scanText("096-206-" + "2491").length, "1桁違いは止める（完全一致だけ）");
   assert.equal(scanText("actions/upload-pages-artifact" + at + "v3 2026-11-07 ¥12,000").length, 0, "誤検知しない");
 });
 

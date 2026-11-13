@@ -66,7 +66,7 @@ npm test               # 全部緑になってからコミット
 | `SITE_NAME` | サイト名 | — |
 | `SITE_URL` | 公開 URL（末尾 `/`）。sitemap・canonical・JSON-LD に使う | 相対パスで出力 |
 | `LINE_URL` | 公式 LINE の友だち追加 URL | ボタンは「準備中」で押せない |
-| `TEL` | 電話（タップで発信） | ボタンは「準備中」で押せない |
+| `TEL` | 店の代表番号（タップで発信）。`js/config.js` に既定で入っている（チラシ・看板に印刷済みの公開情報、オーナー指示 2026-11-13）。`CFG_TEL` を入れるとそちらが勝つ。携帯の番号は載せない | ボタンは「準備中」で押せない |
 | `GAS_URL` | GAS ウェブアプリの URL | 確認画面の送信ボタンが「準備中」。入力と概算は画面に残る |
 | `AREA_CENTER` | `熊本県合志市` | — |
 | `STORE_ADDRESS` | 店の住所（チラシに印刷された公開情報）。フッターと LocalBusiness の `address` | 中心の市町村名だけ |
@@ -84,7 +84,7 @@ npm test               # 全部緑になってからコミット
 
 **優先順**：Actions Variables の `CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`・`CFG_MAIL_PERK_TEXT`（入っているときだけ・公開の写しだけ）＞ `data/site.json` ＞ `js/config.js`。管理画面で営業時間を直しても変わらないときは、Variables の `CFG_HOURS` を消す。
 
-**電話・LINE・GAS の URL はリポジトリに書かない**（`tests/secret-grep.mjs` が止める）。GitHub の Settings → Secrets and variables → Actions → **Variables** に `CFG_SITE_URL`・`CFG_LINE_URL`・`CFG_TEL`・`CFG_GAS_URL`・`CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`・`CFG_MAIL_PERK_TEXT`（どれも任意。入れると `data/site.json` より勝つ。エアコン送客は `CFG_AIRCON_REF_PARAM`・`CFG_AIRCON_REF_CODE`）として入れると、公開のときに `node tools/build.mjs --out _site` が公開用の写しにだけ差し込む。
+**LINE・GAS の URL と携帯の番号はリポジトリに書かない**（`tests/secret-grep.mjs` が止める。例外は店の代表番号だけで、`PUBLIC_NUMBERS` に完全一致の文字列として置いてある。足すのはオーナーの指示があった公開番号だけ）。GitHub の Settings → Secrets and variables → Actions → **Variables** に `CFG_SITE_URL`・`CFG_LINE_URL`・`CFG_TEL`・`CFG_GAS_URL`・`CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`・`CFG_MAIL_PERK_TEXT`（どれも任意。入れると `data/site.json` より勝つ。エアコン送客は `CFG_AIRCON_REF_PARAM`・`CFG_AIRCON_REF_CODE`）として入れると、公開のときに `node tools/build.mjs --out _site` が公開用の写しにだけ差し込む。
 
 ### エアコン送客の設定（ありがとうエアコン）
 `seiri/` の4か所・`kataduke/` の「片付けの後のエアコン」・トップの「6. 申し込む」に、提携店「ありがとうエアコン」の予約フォームへのリンクを出す。リンクは `js/config.js` の3項目から `tools/aircon.mjs` が作り、build が差し込み口（`aircon-item`・`aircon-card`・`aircon-link`）に入れる。ページに href を手で書かない。

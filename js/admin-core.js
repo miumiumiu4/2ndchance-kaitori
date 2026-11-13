@@ -247,7 +247,7 @@ export function validatePrices(next, prev) {
 export const SITE_FIELDS = [
   { key: "hours", label: "営業時間", max: 40, hint: "例：10:00〜19:00。全ページの下とお問い合わせの所に出ます" },
   { key: "notice", label: "お知らせ（トップに出す）", max: 300, multiline: true, hint: "臨時休業・セールなど。空欄ならトップに何も出ません" },
-  { key: "opening_note", label: "上部の帯（LINE・電話の準備中の案内）", max: 200, multiline: true, hint: "LINE と電話がそろうまで全ページの上に出ます" },
+  { key: "opening_note", label: "上部の帯（LINE などの準備中の案内）", max: 200, multiline: true, hint: "LINE と電話の両方がそろうまで全ページの上に出ます" },
   { key: "mail_perk_text", label: "メール会員の登録特典", max: 100, hint: "フォームのメール登録の横に出ます" }
 ];
 // ご紹介キャンペーンのうち管理画面で直せる所

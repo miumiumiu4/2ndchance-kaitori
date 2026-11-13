@@ -2,7 +2,7 @@
 export const SITE = {
   "HOURS": "10:00〜19:00（年中無休）",
   "NOTICE": "",
-  "OPENING_NOTE": "料金は共同代表の確認を経た仮の目安です。LINE・電話は準備中です。",
+  "OPENING_NOTE": "料金は共同代表の確認を経た仮の目安です。LINE は準備中です。",
   "MAIL_PERK_TEXT": "登録特典は準備中です",
   "REFERRAL": {
     "title": "ご紹介キャンペーン",
