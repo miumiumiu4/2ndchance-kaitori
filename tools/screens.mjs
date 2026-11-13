@@ -359,6 +359,129 @@ try {
     await c.close();
   }
 
+  // 管理画面：GAS の URL が空なら「準備中」。偽の GAS（page.route）でログイン → 商品を直す → 保存 → 反映を確認、
+  // 新しい商品の写真は端末で縮めて EXIF を落とす、金額表の入力の確かめ
+  {
+    const A = await import("../js/admin-core.js");
+    const c0 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP" });
+    const p0 = await c0.newPage();
+    p0.on("pageerror", (e) => errors.push(`admin ${e.message}`));
+    await p0.goto(BASE + "admin/", { waitUntil: "networkidle" });
+    check("管理画面：GAS の URL が空ならログインは「準備中」で押せない", (await p0.locator("#adm-login button[type=submit]").isDisabled()) && (await p0.textContent("#adm-login button")).includes("準備中"));
+    check("管理画面：noindex", (await p0.getAttribute('meta[name="robots"]', "content")).includes("noindex"));
+    await c0.close();
+
+    const GAS = "https://gas.invalid/exec";
+    const sent = [];
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP" });
+    const pg = await c.newPage();
+    pg.on("console", (m) => { if (m.type() === "error") errors.push(`admin ${m.text()}`); });
+    pg.on("pageerror", (e) => errors.push(`admin ${e.message}`));
+    const cfg = fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8").replace(/GAS_URL: ""/, `GAS_URL: "${GAS}"`);
+    await c.route("**/js/config.js", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: cfg }));
+    const files = Object.fromEntries(["shop", "prices", "site", "results", "items"].map((k) => [k, { sha: "sha-" + k, data: JSON.parse(fs.readFileSync(path.join(ROOT, "data", k + ".json"), "utf8")) }]));
+    await c.route(GAS, async (r) => {
+      const b = JSON.parse(r.request().postData());
+      sent.push(b);
+      let out;
+      if (b.kind === "admin_login") out = b.passcode === "test-pass-1234" ? { ok: true, token: "ab".repeat(32), who: b.who } : { ok: false, error: "パスコードが違います（あと4回間違えると15分使えなくなります）" };
+      else if (b.kind === "admin_load") out = { ok: true, who: "共同代表", files, actions_url: "https://github.com/miumiumiu4/2ndchance-kaitori/actions" };
+      else if (b.kind === "admin_save") out = { ok: true, commit: "abcdef12", commit_url: "https://github.com/miumiumiu4/2ndchance-kaitori/commit/abcdef12", actions_url: "https://github.com/miumiumiu4/2ndchance-kaitori/actions", changes: [], sha: "sha2-" + b.target, data: { ...b.data, updated: "2026-11-13" } };
+      else out = { ok: true };
+      await r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(out) });
+    });
+    await pg.goto(BASE + "admin/", { waitUntil: "networkidle" });
+    await pg.screenshot({ path: path.join(ROOT, "screens", "admin-login-390.png"), fullPage: true });
+    await pg.fill("#adm-pass", "wrong");
+    await pg.click("#adm-login button[type=submit]");
+    await pg.waitForSelector("#adm-login-err:not([hidden])");
+    check("管理画面：パスコード違いは残り回数つきのエラー", (await pg.textContent("#adm-login-err")).includes("あと4回"));
+    await pg.fill("#adm-pass", "test-pass-1234");
+    await pg.click("#adm-login button[type=submit]");
+    await pg.waitForSelector(".admin-row");
+    check("管理画面：ログインで商品の一覧（写真つき）", (await pg.locator(".admin-row").count()) === files.shop.data.items.length && (await pg.locator(".admin-row img").count()) === files.shop.data.items.length);
+    check("管理画面：パスコードは GAS にだけ送る（画面・保存に残さない）", !(await pg.evaluate(() => JSON.stringify(sessionStorage))).includes("test-pass-1234"));
+    check("管理画面 390px：横スクロールなし", (await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    await pg.screenshot({ path: path.join(ROOT, "screens", "admin-shop-390.png"), fullPage: false });
+
+    // 商品を直す：工業用扇風機を ¥6,000・売切れに
+    const target = files.shop.data.items.find((x) => x.status === "available" && x.price !== null);
+    await pg.click(`[data-edit="${target.id}"]`);
+    await pg.waitForSelector("#adm-item");
+    await pg.fill("#e-price", "６，０００");
+    await pg.click('label.choice:has(input[name=status][value="sold"])');
+    await pg.screenshot({ path: path.join(ROOT, "screens", "admin-edit-390.png"), fullPage: true });
+    check("管理画面 390px：編集の画面も横スクロールなし", (await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    await pg.click('#adm-item button[type=submit]');
+    await pg.waitForSelector("[data-save]");
+    check("管理画面：直すとタブに「未保存」", (await pg.textContent("#adm-tab-shop")).includes("未保存"));
+    await pg.click("[data-save]");
+    await pg.waitForSelector(".admin-confirm");
+    const conf = await pg.textContent(".admin-confirm");
+    check("管理画面：保存の前に変更点（価格・状態）", conf.includes(`価格 ¥${target.price.toLocaleString("ja-JP")} → ¥6,000`) && conf.includes("状態 販売中 → 売切れ"), conf.slice(0, 120));
+    await pg.click('[data-act="send"]');
+    await pg.waitForSelector("#adm-done");
+    const done = await pg.textContent("#adm-done");
+    const save1 = sent.filter((x) => x.kind === "admin_save").at(-1);
+    check("管理画面：保存しました。1〜2分で反映されます（Actions と公開ページのリンク）", done.includes("保存しました。1〜2分で反映されます") && (await pg.getAttribute("#adm-done a[href*='/actions']", "href")).endsWith("/actions") && (await pg.getAttribute("#adm-done a[href$='shop/']", "href")) === "../shop/");
+    check("管理画面：送った中身（token・base_sha・直した商品）", save1.token === "ab".repeat(32) && save1.base_sha === "sha-shop" && save1.data.items.find((x) => x.id === target.id).price === 6000 && save1.data.items.find((x) => x.id === target.id).status === "sold");
+    await pg.click('[data-act="check"]');
+    await pg.waitForFunction(() => /反映/.test(document.querySelector("#adm-check").textContent) && !/確かめています/.test(document.querySelector("#adm-check").textContent));
+    check("管理画面：反映を確認（公開中の JSON と比べる。この試験では古いまま）", (await pg.textContent("#adm-check")).includes("まだ反映されていません"));
+    await pg.screenshot({ path: path.join(ROOT, "screens", "admin-saved-390.png"), fullPage: false });
+
+    // 新しい商品：EXIF 入りの大きな写真 → 端末で 1200px と 480px の JPEG（EXIF なし）にして送る
+    const big = fs.readFileSync(path.join(ROOT, "assets/shop/aqua-fridge-355.jpg"));
+    const exif = Buffer.concat([big.subarray(0, 2), Buffer.from([0xff, 0xe1, 0x00, 0x10]), Buffer.from("Exif\0\0MM\0*\0\0\0\b"), big.subarray(2)]);
+    await pg.click('[data-act="new"]');
+    await pg.waitForSelector("#adm-item");
+    await pg.setInputFiles("#e-photo", { name: "IMG_0001.jpg", mimeType: "image/jpeg", buffer: exif });
+    await pg.waitForSelector("img#e-preview");
+    await pg.fill("#e-name", "試験の棚");
+    await pg.fill("#e-price", "3000");
+    await pg.click('#adm-item button[type=submit]');
+    await pg.waitForSelector("[data-save]");
+    await pg.click("[data-save]");
+    await pg.waitForSelector(".admin-confirm");
+    check("管理画面：新しい商品の変更点（追加・写真）", (await pg.textContent(".admin-confirm")).includes("追加：商品「試験の棚」") && (await pg.textContent(".admin-confirm")).includes("写真：assets/shop/item-"));
+    await pg.click('[data-act="send"]');
+    await pg.waitForSelector("#adm-done");
+    const save2 = sent.filter((x) => x.kind === "admin_save").at(-1);
+    const ph = save2.photos || [];
+    const pBig = ph.find((x) => !x.path.endsWith("-480.jpg")), pSmall = ph.find((x) => x.path.endsWith("-480.jpg"));
+    const okBig = pBig && A.checkPhoto(Buffer.from(pBig.base64, "base64"), A.PHOTO_MAX) === "";
+    const okSmall = pSmall && A.checkPhoto(Buffer.from(pSmall.base64, "base64"), A.THUMB_MAX) === "";
+    check("管理画面：写真は 1200px と 480px の JPEG、EXIF なしで送る（置き場は assets/shop/<id>.jpg）", ph.length === 2 && okBig && okSmall && /^assets\/shop\/item-\d{8}-\d+\.jpg$/.test(pBig.path) && save2.data.items[0].photos[0] === pBig.path && save2.base_sha === "sha2-shop", [ph.map((x) => x.path).join(","), pBig && A.checkPhoto(Buffer.from(pBig.base64, "base64"), A.PHOTO_MAX), pSmall && A.checkPhoto(Buffer.from(pSmall.base64, "base64"), A.THUMB_MAX), save2.base_sha, save2.data.items[0].photos[0]].join(" / "));
+
+    // 金額表：数字でない入力は赤く、保存は止める
+    await pg.click("#adm-tab-prices");
+    await pg.waitForSelector(".admin-group");
+    await pg.click(".admin-group:nth-of-type(2) > summary");
+    const inp = pg.locator('[data-path=\'["collection_tiers",0,"price_from"]\']');
+    await inp.fill("-5");
+    check("金額表：数字でない入力は赤く（aria-invalid）", (await inp.getAttribute("aria-invalid")) === "true");
+    await pg.click("[data-save]");
+    await pg.waitForSelector("#adm-preview .err-summary");
+    check("金額表：保存の前にエラーの一覧（送らない）", (await pg.textContent("#adm-preview")).includes("0以上の整数") && sent.filter((x) => x.kind === "admin_save" && x.target === "prices").length === 0);
+    await inp.fill("7,000");
+    await pg.click("[data-save]");
+    await pg.waitForSelector(".admin-confirm");
+    check("金額表：変更点（不用品回収の料金）", (await pg.textContent(".admin-confirm")).includes("→ ¥7,000"));
+    await pg.screenshot({ path: path.join(ROOT, "screens", "admin-prices-390.png"), fullPage: false });
+    await pg.click('[data-act="send"]');
+    await pg.waitForSelector("#adm-done");
+    check("金額表：送った中身", sent.filter((x) => x.kind === "admin_save" && x.target === "prices").at(-1).data.collection_tiers[0].price_from === 7000);
+    // お店の情報：お知らせとキャンペーン
+    await pg.click("#adm-tab-site");
+    await pg.waitForSelector('[data-path=\'["notice"]\']');
+    await pg.fill('[data-path=\'["notice"]\']', "年末年始も営業します");
+    await pg.click("[data-save]");
+    await pg.waitForSelector(".admin-confirm");
+    check("お店の情報：お知らせの変更点", (await pg.textContent(".admin-confirm")).includes("年末年始も営業します"));
+    check("管理画面：コンソールエラーなし", true);
+    await c.close();
+  }
+
   check("コンソールエラーなし", errors.length === 0, errors.join(" | "));
 } finally {
   await browser.close();

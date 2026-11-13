@@ -1,0 +1,18 @@
+{
+  "_note": "お店の情報（管理画面で直せる文言）。tools/build.mjs が全ページに差し込む。Actions Variables の CFG_HOURS・CFG_OPENING_HOURS_SPEC・CFG_OPENING_NOTE・CFG_MAIL_PERK_TEXT が入っていれば、公開の写しではそちらが勝つ（README「設定手順」）。電話番号・メール・お客様の名前は書かない。",
+  "updated": "2026-11-13",
+  "hours": "10:00〜19:00（年中無休）",
+  "opening_hours_spec": "Mo-Su 10:00-19:00",
+  "notice": "",
+  "opening_note": "料金は共同代表の確認を経た仮の目安です。LINE・電話は準備中です。",
+  "mail_perk_text": "登録特典は準備中です",
+  "referral_campaign": {
+    "active": true,
+    "title": "ご紹介キャンペーン",
+    "services": ["ihin", "seizen", "gomiyashiki", "akiya"],
+    "reward_yen": 10000,
+    "gift": "揚げたてのチキン",
+    "condition": "ご紹介いただいた案件がご成約になった場合",
+    "note": "紹介するだけでOK。お電話・QR・直接のご紹介どれでも"
+  }
+}

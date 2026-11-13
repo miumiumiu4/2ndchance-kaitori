@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 組み立て：config と data/*.json を各ページの <!--build:名前--> 〜 <!--/build:名前--> に差し込み、
-// sitemap.xml・robots.txt・llms.txt・gas/QuoteCore.gs・gas/Prices.gs を生成する。
+// sitemap.xml・robots.txt・llms.txt・js/site.js・gas/QuoteCore.gs・gas/Prices.gs・gas/ShopCore.gs・gas/Shop.gs・gas/AdminCore.gs を生成する。
 //   node tools/build.mjs           … リポジトリの中をその場で更新（config.js の値だけを使う）
 //   node tools/build.mjs --check   … 書き換えずに、生成物が最新かだけを確かめる（古ければ終了コード 1）
 //   node tools/build.mjs --out _site … 公開用の写しを作る。環境変数 CFG_* の値をこの写しにだけ差し込む
@@ -564,7 +564,10 @@ function sitemap() {
   return `<?xml version="1.0" encoding="UTF-8"?>\n${head}<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n${LIVE_OPEN}\n${blog}\n${LIVE_CLOSE}\n</urlset>\n`;
 }
 function robots() {
-  return `User-agent: *\nAllow: /\n` + (CONFIG.SITE_URL ? `\nSitemap: ${CONFIG.SITE_URL}sitemap.xml\n` : "");
+  // 管理画面（admin/）は検索に出さない。プロジェクトサイト（/リポジトリ名/）なら、そのパスの下の admin/
+  let base = "/";
+  try { if (CONFIG.SITE_URL) base = new URL(CONFIG.SITE_URL).pathname; } catch (_) {}
+  return `User-agent: *\nAllow: /\nDisallow: ${base}admin/\n` + (CONFIG.SITE_URL ? `\nSitemap: ${CONFIG.SITE_URL}sitemap.xml\n` : "");
 }
 function llms() {
   const u = (p) => (CONFIG.SITE_URL ? CONFIG.SITE_URL + p : "/" + p);
@@ -886,6 +889,9 @@ outputs.set("gas/QuoteCore.gs", quoteCoreGs());
 outputs.set("js/site.js", siteJs());
 outputs.set("gas/Prices.gs", pricesGs());
 outputs.set("gas/ShopCore.gs", coreGs("js/shop-core.js", "ShopCore"));
+outputs.set("gas/AdminCore.gs", coreGs("js/admin-core.js", "AdminCore"));
+// 管理画面（ナビ・sitemap には出さない）。CSS の版番号だけ付け直す
+outputs.set("admin/index.html", fs.readFileSync(path.join(ROOT, "admin/index.html"), "utf8").replace(/href="([./]*)css\/site\.css(\?v=[0-9a-f]*)?"/g, `href="$1css/site.css?v=${CSS_VER}"`));
 outputs.set("gas/Shop.gs", `// 自動生成：tools/build.mjs が data/shop.json から作る。手で直さない。\n// 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。\nvar SHOP = ${JSON.stringify(SHOP, null, 2)};\n`);
 for (const it of SHOP.items) { const [f, html] = shopItemPage(it); outputs.set(f, html); }
 

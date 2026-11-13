@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HAS_BLOG = fs.existsSync(path.join(ROOT, "blog/index.html"));
-const HTML = ["index.html", "kaitori/index.html", "kataduke/index.html", "seiri/index.html", "flow/index.html", "price/index.html", "privacy/index.html", "shop/index.html", ...fs.readdirSync(path.join(ROOT, "shop"), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => `shop/${d.name}/index.html`)];
+const HTML = ["admin/index.html", "index.html", "kaitori/index.html", "kataduke/index.html", "seiri/index.html", "flow/index.html", "price/index.html", "privacy/index.html", "shop/index.html", ...fs.readdirSync(path.join(ROOT, "shop"), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => `shop/${d.name}/index.html`)];
 
 test("相対リンクの行き先がある（ページ内の #id も確かめる）", () => {
   const broken = [];

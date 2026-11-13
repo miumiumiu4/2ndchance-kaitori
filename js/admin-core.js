@@ -250,6 +250,14 @@ export const SITE_FIELDS = [
   { key: "opening_note", label: "上部の帯（LINE・電話の準備中の案内）", max: 200, multiline: true, hint: "LINE と電話がそろうまで全ページの上に出ます" },
   { key: "mail_perk_text", label: "メール会員の登録特典", max: 100, hint: "フォームのメール登録の横に出ます" }
 ];
+// ご紹介キャンペーンのうち管理画面で直せる所
+export const CAMPAIGN_FIELDS = [
+  { key: "active", label: "出す", type: "bool" },
+  { key: "reward_yen", label: "紹介料（1件・円）", type: "amount" },
+  { key: "gift", label: "お礼の品", max: 40 },
+  { key: "condition", label: "条件", max: 120 },
+  { key: "note", label: "一言", max: 120 }
+];
 export function validateSite(site) {
   const errs = [];
   if (!isObj(site)) return ["お店の情報の形が正しくありません"];
@@ -258,6 +266,19 @@ export function validateSite(site) {
     else if (site[f.key].length > f.max) errs.push(f.label + "は" + f.max + "文字まで");
   });
   if (site.updated != null && !/^\d{4}-\d{2}-\d{2}$/.test(str(site.updated))) errs.push("更新日は YYYY-MM-DD");
+  const c = site.referral_campaign;
+  if (c !== undefined) {
+    if (!isObj(c)) errs.push("ご紹介キャンペーンの形が正しくありません");
+    else {
+      if (typeof c.active !== "boolean") errs.push("ご紹介キャンペーンの「出す／出さない」が正しくありません");
+      if (!isAmount(c.reward_yen)) errs.push("紹介料は0以上の整数（円）か空欄");
+      if (typeof c.gift !== "string" || c.gift.length > 40) errs.push("紹介のお礼の品は40文字まで");
+      if (typeof c.title !== "string" || !c.title.trim() || c.title.length > 40) errs.push("キャンペーンの名前は1〜40文字");
+      if (typeof c.condition !== "string" || c.condition.length > 120) errs.push("キャンペーンの条件は120文字まで");
+      if (typeof c.note !== "string" || c.note.length > 120) errs.push("キャンペーンの一言は120文字まで");
+      if (!Array.isArray(c.services) || !c.services.length) errs.push("キャンペーンの対象が空です");
+    }
+  }
   privacyErrors(site, errs);
   return errs;
 }
@@ -295,7 +316,22 @@ export function validateResults(res, opts) {
   return errs;
 }
 
+export const SHOP_ITEM_KEYS = ["id", "name", "category", "price", "sale", "year", "condition", "size", "free_shipping", "status", "photos", "note", "payment_link"];
+export const RESULT_KEYS = ["id", "item_id", "name", "category", "price", "date", "area", "photo", "comment"];
+function extraKeys(o, allowed) {
+  return Object.keys(o || {}).filter(function (k) { return allowed.indexOf(k) < 0; });
+}
+// 保存してよいか（エラーの文の一覧。空なら保存してよい）。prev は今の中身（形をそろえる）
 export function validateData(target, next, prev, opts) {
+  if (isObj(next) && isObj(prev) && target !== "prices" && Object.keys(next).sort().join("|") !== Object.keys(prev).sort().join("|")) return ["ファイルの形（項目の名前）は変えられません"];
+  if (target === "shop" && isObj(next) && Array.isArray(next.items)) {
+    const bad = next.items.map(function (it) { return extraKeys(it, SHOP_ITEM_KEYS); }).filter(function (x) { return x.length; });
+    if (bad.length) return ["商品に知らない項目があります：" + bad[0].join("・")];
+  }
+  if (target === "results" && isObj(next) && Array.isArray(next.results)) {
+    const bad = next.results.map(function (it) { return extraKeys(it, RESULT_KEYS); }).filter(function (x) { return x.length; });
+    if (bad.length) return ["実績に知らない項目があります：" + bad[0].join("・")];
+  }
   if (target === "shop") return validateShop(next, opts);
   if (target === "prices") return validatePrices(next, prev);
   if (target === "site") return validateSite(next);
@@ -313,6 +349,7 @@ const FIELD_NAMES = {
 };
 const SECTION_NAMES = { collection_tiers: "不用品回収", cleanup_by_kind: "片付け", other_cleanup: "その他の片付け", buyback_items: "買取", options: "オプション", perks: "特典", delivery_tiers: "配送料（ネット注文）", delivery_tiers_store: "配送料（店頭購入）", condition_factor: "状態の係数", price_by_form: "フォーム別", quo_card: "クオカード", same_day_up: "同日査定", ihin: "遺品整理", seizen: "生前整理", gomiyashiki: "ゴミ屋敷", akiya: "空き家" };
 function show(v, key) {
+  if (key === "reward_yen" && typeof v === "number") return "¥" + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   if (v === null || v === undefined || v === "") return key === "price" || key === "price_from" || key === "fee" || key === "min_price" || key === "max_price" ? "空欄（要相談）" : "空欄";
   if (typeof v === "boolean") return v ? "はい" : "いいえ";
   if (key === "status") return SHOP_STATUS_NAMES[v] || v;
@@ -366,6 +403,10 @@ export function diffSummary(target, before, after) {
     SITE_FIELDS.forEach(function (f) {
       const a = before ? str(before[f.key]) : "", b = after ? str(after[f.key]) : "";
       if (a !== b) out.push(f.label + "：" + (a ? "「" + show(a) + "」" : "空欄") + " → " + (b ? "「" + show(b) + "」" : "空欄"));
+    });
+    const ca = (before && before.referral_campaign) || {}, cb = (after && after.referral_campaign) || {};
+    CAMPAIGN_FIELDS.forEach(function (f) {
+      if (JSON.stringify(ca[f.key]) !== JSON.stringify(cb[f.key])) out.push("ご紹介キャンペーン：" + f.label + " " + show(ca[f.key], f.key) + " → " + show(cb[f.key], f.key));
     });
   } else walk(before || {}, after || {}, [], "", out);
   return out;
@@ -424,6 +465,22 @@ export function jpegInfo(bytes) {
   }
   if (!w || !h) return { ok: false, error: "写真の大きさが読めません" };
   return { ok: true, w: w, h: h, app: app };
+}
+// JPEG から APP1〜15（EXIF・位置情報・ICC など）とコメントを取り除いた 0〜255 の配列（画素はそのまま）。JPEG でなければ null
+export function stripJpegMeta(bytes) {
+  const b = function (i) { return bytes[i] & 0xff; };
+  if (!bytes || bytes.length < 4 || b(0) !== 0xff || b(1) !== 0xd8) return null;
+  const out = [0xff, 0xd8];
+  let i = 2;
+  while (i + 4 <= bytes.length) {
+    if (b(i) !== 0xff) return null;
+    const m = b(i + 1);
+    if (m === 0xda) { for (let k = i; k < bytes.length; k++) out.push(b(k)); return out; }
+    const len = (b(i + 2) << 8) | b(i + 3);
+    if (!((m >= 0xe1 && m <= 0xef) || m === 0xfe)) for (let k = i; k < i + 2 + len && k < bytes.length; k++) out.push(b(k));
+    i += 2 + len;
+  }
+  return null;
 }
 // 公開してよい写真か：JPEG・EXIF などなし・長辺が max 以下・大きすぎない
 export function checkPhoto(bytes, max) {

@@ -6,6 +6,7 @@
  *     shop           … 販売ページの注文（カート：items = [{id, price}]）。商品と商品代を Shop.gs（data/shop.json）と ShopCore で照合し、
  *                      1注文1行で「受付」に追記（商品は「、」でつなぐ・点数の列）・通知・自動返信。配送料は1注文で1回分。
  *     delivery_log   … 配送料を計算しただけの記録（郵便番号・区分・日時だけ）を「配送料ログ」に追記。
+ *     admin_…        … 管理画面（/admin/）。Admin.gs の adminHandle_ が受ける（ログイン・読み込み・保存）。
  *   初回の受付で「集計」シート（式だけ）を ensureDashboard_() が作る。
  * - doGet ：action=quote で概算（読み取り専用・AI エージェント向け）、action=prices で価格表。
  * 値（シート ID・メールアドレス）はスクリプトプロパティだけに置く。このファイルに書かない。
@@ -15,7 +16,8 @@
  *   MAX_PER_DAY      … 任意。1日の受付上限（既定 50。超えたら受け付けずにエラー）
  *   LOG_MAX_PER_DAY  … 任意。配送料ログの1日の上限（既定 500。超えたら黙って捨てる）
  *   MAILER_API_KEY   … 予約（未使用）。メール配信サービスへの連携は後日
- * 同じフォルダの QuoteCore.gs・Prices.gs・ShopCore.gs・Shop.gs は tools/build.mjs が生成する（手で直さない）。
+ * 同じフォルダの QuoteCore.gs・Prices.gs・ShopCore.gs・Shop.gs・AdminCore.gs は tools/build.mjs が生成する（手で直さない）。
+ * 管理画面のプロパティ（ADMIN_PASS_HASH・ADMIN_GITHUB_TOKEN）は Admin.gs の先頭。
  */
 
 var SHEET_NAME = '受付';
@@ -50,6 +52,7 @@ function json_(obj) {
 // ---------- 読み取り（AI 向け） ----------
 function doGet(e) {
   var p = (e && e.parameter) || {};
+  if (typeof adminLiveData_ === 'function') adminLiveData_(); // 管理画面で直した価格表（Admin.gs）
   if (p.action === 'prices') return json_(PRICES);
   if (p.action === 'quote') {
     var input = QuoteCore.parseQuoteQuery(p);
@@ -71,6 +74,9 @@ function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    // 管理画面（/admin/）は Admin.gs へ
+    if (String(body.kind || '').indexOf('admin_') === 0) return json_(adminHandle_(body));
+    if (typeof adminLiveData_ === 'function') adminLiveData_(); // 管理画面で直した価格表・商品表を照合に使う
     if (body.website) return json_({ ok: true, id: '' }); // ロボット対策の空欄に何か入っていたら黙って捨てる
     if (body.kind === 'delivery_log') return json_(logDelivery_(body));
     if (body.kind === 'shop') return json_(handleShop_(body, lock));
