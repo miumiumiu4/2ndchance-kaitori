@@ -95,6 +95,9 @@ const store = {
   latlng: q1.latlng,
   tel: str(q2.tel),
   repo: str(A.repo),
+  // 業種（data/industries.json：recycle リサイクル店／fuyou 不用品回収・片付け／ihin 遺品整理・生前整理／kaitori 出張買取）
+  industry: str(A.industry) || "recycle",
+  review_url: str(A.review_url),
   shop: !!A.q12,
   // 管理画面のログインで選ぶ名前（1つ目が店の人。既定は「店主」「運営」）
   admin_roles: Array.isArray(A.admin_roles) && A.admin_roles.map(str).filter(Boolean).length ? A.admin_roles.map(str).filter(Boolean) : ["店主", "運営"],

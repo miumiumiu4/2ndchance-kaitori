@@ -2,6 +2,9 @@
   "_how": "架空の店（試し焼き用）。実在の店ではない。聞き取り質問票（作戦メモ）の Q1〜Q12 の答えをこの形で書き、node tools/new-store.mjs stores/<id>/answers.json --out ../<id> を実行する。空欄は \"\" か null のまま（画面では「準備中」「要相談」）。電話は店の代表番号だけ、携帯・メール・合言葉は書かない。",
   "id": "example-kurume",
   "repo": "",
+  "industry": "recycle",
+  "_industry": "業種：recycle リサイクル店／fuyou 不用品回収・片付け／ihin 遺品整理・生前整理／kaitori 出張買取",
+  "review_url": "",
   "admin_roles": [
     "店主",
     "運営"
