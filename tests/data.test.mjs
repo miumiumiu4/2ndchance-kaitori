@@ -62,7 +62,8 @@ test("prices.json は prices.template.json と同じ形（キーが欠けてい�
 
 test("prices.json：11/9 打合せの金額（家電の年式 5年・最低額・特典・解体は片付けで無料）", () => {
   const p = read("data/prices.json");
-  assert.equal(p.updated, "2026-11-09");
+  assert.equal(p.updated, "2026-11-13");
+  assert.deepEqual(p.delivery_tiers.map((d) => [d.max_km, d.fee]), [[10, 0], [15, 3000], [20, 4000], [25, 5000], [30, 6000], [50, 10000], [null, null]], "配送料は店のチラシどおり（10km 以内は無料）");
   const b = Object.fromEntries(p.buyback_items.map((x) => [x.id, x]));
   ["fridge", "washer", "microwave", "gas_stove", "carpet", "curtain"].forEach((id) => assert.equal(b[id].year_limit, 5, id));
   assert.deepEqual([b.fridge.min_price, b.fridge.max_price], [1000, 20000]);

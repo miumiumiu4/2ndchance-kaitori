@@ -291,7 +291,13 @@ function priceTables(page, rel) {
 ${perksBox()}
 <h3 id="delivery" style="margin-top:18px">購入商品の配送料（店からの距離）</h3>
 <div class="table-wrap"><table class="price"><thead><tr><th scope="col">店からの距離</th><th scope="col">配送料</th></tr></thead><tbody>${delivery}</tbody></table></div>
-<p class="muted">距離は道のりの目安です。送料無料の商品は50km以内なら無料です。郵便番号を入れると<a href="${rel}shop/#order">販売ページの注文フォーム</a>で目安が出ます。</p>`;
+<p class="muted">距離は道のりの目安です。${freeDeliveryText()}送料無料の商品は50km以内なら無料です。郵便番号を入れると<a href="${rel}shop/#order">販売ページの注文フォーム</a>で目安が出ます。</p>`;
+}
+
+// 配送料が無料の区分（fee 0）の一番遠い距離。「店から10km以内の配送は無料です。」
+function freeDeliveryText() {
+  const free = (PRICES.delivery_tiers || []).filter((d) => d.fee === 0 && isNum(d.max_km)).map((d) => d.max_km);
+  return free.length ? `店から${Math.max(...free)}km以内の配送は無料です。` : "";
 }
 
 function resultsCards(page, rel, limit) {
@@ -592,7 +598,7 @@ ${SHOP.items.map((it) => { const p = SC.shopPrice(it); return `- ${it.id}：${it
 - 予約は、フォームまたは LINE・電話の受付のあと、電話の折返しで日時を相談して確定する。フォーム送信だけでは確定しない。
 - 買取代金の受け取りは現金が基本、高額の場合は銀行振込。お客様が支払う費用（回収・片付け・配送・商品代）は現金・クレジットカード・PayPay。
 - 出張費・査定料は店から30km圏内は無料。
-- 購入商品の配送料（店からの道のりの目安）：${deliv}。送料無料の商品は50km以内なら無料。
+- 購入商品の配送料（店からの道のりの目安）：${deliv}。${freeDeliveryText()}送料無料の商品は50km以内なら無料。
 - 予約の書き込み API は段階2（未提供）。
 `;
 }

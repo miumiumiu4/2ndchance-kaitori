@@ -4,7 +4,7 @@ var PRICES = {
   "_note": "概算フォーム・料金ページ・AI向けJSON・GAS再計算が共通で読む価格表。provisional: true のあいだは仮の金額（2026年11月9日 共同代表との打合せで決めた目安）。正式に確定したら provisional を false にする。null は「要相談」表示。",
   "currency": "JPY",
   "tax": "included",
-  "updated": "2026-11-09",
+  "updated": "2026-11-13",
   "provisional": true,
   "provisional_note": "現在の金額は共同代表との打合せ（2026年11月9日）で決めた仮の目安です。正式な金額に調整中で、最終額は訪問査定で確定します。",
   "disclaimer": "表示額は目安です。最終額は訪問査定で確定します。",
@@ -300,13 +300,8 @@ var PRICES = {
   },
   "delivery_tiers": [
     {
-      "max_km": 3,
-      "fee": 0,
-      "label": "3km以内"
-    },
-    {
       "max_km": 10,
-      "fee": 2000,
+      "fee": 0,
       "label": "10km以内"
     },
     {
