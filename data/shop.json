@@ -1,6 +1,6 @@
 {
   "_note": "販売中の商品（店頭・配送）。price は税込の円、null は「価格は確認中」。sale は割引率（0.1 = 10% OFF）。status は available（販売中）／reserved（取り置き中）／sold（売切れ）。payment_link に外部の決済ページの URL を入れた商品だけ「カードで支払う」ボタンが出る（今は全て空）。写真は tools/photos.py が作る。",
-  "updated": "2026-11-09",
+  "updated": "2026-11-14",
   "tax": "included",
   "hold_days": 3,
   "hold_note": "お取り置きは3日間（仮）です。",
@@ -9,6 +9,7 @@
     { "id": "clothes", "title": "衣類も販売しています（店頭 10% OFF）", "photo": "assets/shop/clothes-rack.jpg", "note": "冬物のコートや婦人服など。店頭でご覧ください（このページからの注文は受けていません）。" }
   ],
   "items": [
+    { "id": "item-20261114", "name": "テスト", "category": "その他", "price": 100, "year": null, "condition": "中古", "size": "", "free_shipping": false, "status": "available", "photos": ["assets/shop/item-20261114.jpg"], "note": "", "payment_link": "" },
     { "id": "aqua-fridge-355", "name": "AQUA 冷蔵庫 355L（2024年）", "category": "家電", "price": 65000, "year": 2024, "condition": "中古", "size": "355L・4ドア", "free_shipping": true, "status": "available", "photos": ["assets/shop/aqua-fridge-355.jpg"], "note": "2024年製。送料無料（店から50km以内）。", "payment_link": "" },
     { "id": "drum-washer", "name": "ドラム式洗濯乾燥機（BIG DRUM）", "category": "家電", "price": 45000, "year": null, "condition": "中古", "size": "", "free_shipping": true, "status": "available", "photos": ["assets/shop/drum-washer.jpg"], "note": "送料無料（店から50km以内）。", "payment_link": "" },
     { "id": "rice-cooker-2024", "name": "炊飯器 5合炊き（新品・2024年）", "category": "家電", "price": 8200, "year": 2024, "condition": "新品", "size": "5合炊き", "free_shipping": false, "status": "available", "photos": ["assets/shop/rice-cooker-2024.jpg"], "note": "新品（箱入り）。", "payment_link": "" },
