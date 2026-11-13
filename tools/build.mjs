@@ -45,6 +45,9 @@ const readJSON = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
 const STORE = readJSON("data/store.json");
 // ネット販売（/shop/）を出すか。data/store.json の shop が false の店は、販売ページ・商品ページ・ナビ・配送料の表を出さない
 const SHOP_ON = STORE.shop !== false;
+// 業種（data/industries.json の型。無ければ recycle）。現場の道具（/admin/tools/）に出す道具が変わる
+const INDUSTRIES = readJSON("data/industries.json");
+if (STORE.industry !== undefined && (typeof STORE.industry !== "string" || STORE.industry.startsWith("_") || !INDUSTRIES[STORE.industry])) throw new Error(`data/store.json の industry が知らない業種です：${STORE.industry}（使えるのは ${Object.keys(INDUSTRIES).filter((k) => !k.startsWith("_")).join("・")}）`);
 const SITE_DATA = readJSON("data/site.json");
 const SITE_KEYS = { HOURS: "hours", OPENING_HOURS_SPEC: "opening_hours_spec", OPENING_NOTE: "opening_note", MAIL_PERK_TEXT: "mail_perk_text", NOTICE: "notice" };
 // 公開用の写しにだけ、環境変数（GitHub の Actions Variables）で値を差し込む
@@ -970,7 +973,7 @@ outputs.set("gas/Prices.gs", pricesGs());
 outputs.set("gas/ShopCore.gs", coreGs("js/shop-core.js", "ShopCore"));
 outputs.set("gas/AdminCore.gs", coreGs("js/admin-core.js", "AdminCore"));
 // 管理画面とかんたん入力（ナビ・sitemap には出さない）。CSS の版番号だけ付け直す
-for (const f of ["admin/index.html", "admin/quick/index.html"]) outputs.set(f, fillPlain(fs.readFileSync(path.join(ROOT, f), "utf8")).replace(/href="([./]*)css\/site\.css(\?v=[0-9a-f]*)?"/g, `href="$1css/site.css?v=${CSS_VER}"`));
+for (const f of ["admin/index.html", "admin/quick/index.html", "admin/tools/index.html"]) outputs.set(f, fillPlain(fs.readFileSync(path.join(ROOT, f), "utf8")).replace(/href="([./]*)css\/site\.css(\?v=[0-9a-f]*)?"/g, `href="$1css/site.css?v=${CSS_VER}"`));
 outputs.set("gas/Store.gs", `// 自動生成：tools/build.mjs が data/store.json から作る。手で直さない。\n// 店名（メールの差出人名の既定）、管理画面が保存する GitHub のリポジトリ（ADMIN_REPO の既定）、ログインで選ぶ名前。秘密は入れない。\nvar STORE_INFO = ${JSON.stringify({ name: CONFIG.SITE_NAME, repo: STORE.repo || "", admin_roles: adminRoles() || [] }, null, 2)};\n`);
 outputs.set("404.html", fillPlain(fs.readFileSync(path.join(ROOT, "404.html"), "utf8")));
 outputs.set("gas/Shop.gs", `// 自動生成：tools/build.mjs が data/shop.json から作る。手で直さない。\n// 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。\nvar SHOP = ${JSON.stringify(SHOP, null, 2)};\n`);

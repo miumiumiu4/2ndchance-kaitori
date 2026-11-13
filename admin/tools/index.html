@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>現場の道具｜2nd chance recycle</title>
+<meta name="theme-color" content="#1f5e46">
+<link rel="stylesheet" href="../../css/site.css?v=4bac3433">
+<style>
+.tools-card { margin: 12px 0; }
+.tools-card summary { cursor: pointer; padding: 6px 0; }
+.tools-line { display: grid; grid-template-columns: 1fr 56px 110px 52px; gap: 6px; margin: 6px 0; }
+.tools-line input { min-width: 0; min-height: 48px; font-size: 1rem; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.tools-out { width: 100%; font-size: .95rem; padding: 10px; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
+</style>
+<link rel="icon" href="../../assets/icons/truck-mini.svg" type="image/svg+xml">
+</head>
+<body class="admin tools">
+<!-- 現場の道具（店の人のスマホ用）：内訳つき見積書・訪問日の確定連絡と前日の知らせ・口コミのお願いの文面を作る。
+     業種（data/store.json の industry）で出す道具が変わる（data/industries.json）。ログイン不要：何も送らず、何も保存しない。
+     ナビ・sitemap・llms.txt には出さない。robots.txt の Disallow: admin/ に含まれる。js/field-tools.js が画面を作る。 -->
+<header class="site-header"><div class="wrap">
+<span class="brand">現場の道具<small><!--build:t-name-->2nd chance recycle<!--/build:t-name--></small></span>
+</div></header>
+<main id="main" class="wrap admin-main">
+<div data-tools-root><p class="muted">読み込み中…</p></div>
+<noscript><p class="callout">この画面を使うには JavaScript を有効にしてください。</p></noscript>
+</main>
+<script type="module" src="../../js/field-tools.js"></script>
+</body>
+</html>
