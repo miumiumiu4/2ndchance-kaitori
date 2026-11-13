@@ -42,8 +42,12 @@ tools/setup-store.sh ~/claude/shops/<id> --deploy   # ウェブアプリとし�
 - `/admin/` でログイン → 「変更はありません」まで。
 
 ## まだ型になっていない所（宿題）
-- 管理画面のログインの役の名前（`js/admin-core.js` の `ADMIN_ROLES`＝共同代表／オーナー）と、パスコードの前置き（`ADMIN_PASS_PREFIX`）。
-- ネット販売をしない店でも販売ページ（/shop/）がナビに出る（商品なしの表示）。
-- 配送料の郵便番号表（`data/postal/`）は見本の店の周り。販売する店は `tools/build-postal.mjs --prefs <県>` で作り直す。
+- パスコードの前置き（`js/admin-core.js` の `ADMIN_PASS_PREFIX`）は全店共通。店ごとのパスコードとハッシュは別なので、今は困らない。
+- 配送料の郵便番号表（`data/postal/`）は見本の店の周り。販売する店（Q12 あり）は `tools/build-postal.mjs --prefs <県>` で作り直す。
 - ページの文章の大部分（トップの説明・流れなど）は全店共通。検索で「写し」と見なされないよう、店の言葉（記事・FAQ・選ばれる理由）を足していく。
 - 色・ロゴは全店同じ（`css/site.css`）。
+
+## できるようになったこと（型の切り替え）
+- 管理画面のログインで選ぶ名前：`data/store.json` の `admin_roles`（答えの `admin_roles`。既定は「店主」「運営」）。
+- ネット販売をしない店（Q12 なし）：`data/store.json` の `shop: false` で、販売ページ・商品ページ・ナビ・トップの節・配送料の表・sitemap・llms.txt の販売を出さない。
+- 手書きの文の中の店の言葉：`<!--build:t:{town}から{radius}km圏内へ伺います。-->…<!--/build:t-->`（文ごとに作り直す。字詰めが変わらない）。

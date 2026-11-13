@@ -20,7 +20,7 @@
 | `tools/passhash.mjs` | 管理画面のパスコード → GAS のプロパティ `ADMIN_PASS_HASH` に入れるハッシュ |
 | `404.html` | 見つからないページ |
 | `css/site.css` | 見た目（モバイル優先・文字大きめ・コントラスト 4.5 以上） |
-| `data/store.json` | **店の名札**（店名・地域・住所・位置・代表番号・古物商許可・管理画面の保存先）。build が全ページ・JSON-LD・llms.txt・`js/site.js`・`gas/Store.gs` に差し込む。手書きの文の中の店の言葉は `<!--build:t-town-->合志市<!--/build:t-town-->` のように囲む（`t-name`・`t-area`・`t-town`・`t-radius`） |
+| `data/store.json` | **店の名札**（店名・地域・住所・位置・代表番号・古物商許可・管理画面の保存先）。build が全ページ・JSON-LD・llms.txt・`js/site.js`・`gas/Store.gs` に差し込む。手書きの文の中の店の言葉は `<!--build:t:{town}から{radius}km圏内…-->今の文<!--/build:t-->` のように文ごとに囲む（`{name}`・`{area}`・`{town}`・`{radius}`） |
 | `js/config.js` | 設定（URL・LINE・GAS・エアコン送客）。店名・住所・電話は `data/store.json` |
 | `tools/new-store.mjs`・`tools/setup-store.sh`・`tools/setup-store.md`・`stores/`・`docs/multi-store.md` | **量産の型**：聞き取りの答え → 新しい店のサイト一式、店ごとの受け口の設定、置き場所の比較 |
 | `data/site.json` | お店の情報（営業時間・お知らせ・上部の帯・メール会員の特典・ご紹介キャンペーン）。管理画面で直せる。build が `js/site.js`（生成物）と各ページに差し込む |

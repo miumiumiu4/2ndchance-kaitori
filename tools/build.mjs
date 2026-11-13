@@ -75,7 +75,8 @@ function storeConfig(st) {
 const PRICES = readJSON("data/prices.json");
 const ITEMS = readJSON("data/items.json");
 const AREAS = readJSON("data/areas.json");
-// 本文の差し込み言葉（店ごとに変わる言葉）。ページの手書き部分では <!--build:t-town-->合志市<!--/build:t-town--> のように囲む。
+// 本文の差し込み言葉（店ごとに変わる言葉）。ページの手書き部分では <!--build:t:{town}から{radius}km圏内…-->今の文<!--/build:t--> のように文ごとに囲む
+// （短い部分だけ <!--build:t-name-->…<!--/build:t-name--> も使える）。
 // PAGES の desc・meta では {town} のように書く。
 const TOKENS = {
   name: CONFIG.SITE_NAME,
@@ -602,7 +603,14 @@ function fill(html, page) {
 }
 
 // 本文中の店の言葉（<!--build:t-名前-->…<!--/build:t-名前-->）。文の途中に置くので改行を入れない
+// 文ごとの差し込み：<!--build:t:{town}から{radius}km圏内…-->（今の文）<!--/build:t--> の今の文を、コメントの中のひな形から作り直す。
+// 文を1つの文字のまとまりのまま置き換えるので、ブラウザの字詰めが変わらない（言葉ごとに区切ると数字と km の間が1px ずれる）
 function fillTokens(html) {
+  html = html.replace(/<!--build:t:([^>]*?)-->[^<]*<!--\/build:t-->/g, (m, t) => {
+    const bad = (t.match(/\{([a-z]+)\}/g) || []).filter((x) => !(x.slice(1, -1) in TOKENS));
+    if (bad.length) throw new Error(`知らない差し込み言葉 ${bad.join("・")}（使えるのは ${Object.keys(TOKENS).map((x) => "{" + x + "}").join("・")}）`);
+    return `<!--build:t:${t}-->${esc(tpl(t))}<!--/build:t-->`;
+  });
   return html.replace(/<!--build:t-([a-z]+)-->[^<]*<!--\/build:t-\1-->/g, (m, k) => {
     if (!(k in TOKENS)) throw new Error(`知らない差し込み言葉 t-${k}（使えるのは ${Object.keys(TOKENS).map((x) => "t-" + x).join("・")}）`);
     return `<!--build:t-${k}-->${esc(TOKENS[k])}<!--/build:t-${k}-->`;
