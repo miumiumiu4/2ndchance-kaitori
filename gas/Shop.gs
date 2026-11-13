@@ -17,22 +17,6 @@ var SHOP = {
   ],
   "items": [
     {
-      "id": "item-20261114",
-      "name": "テスト",
-      "category": "その他",
-      "price": 100,
-      "year": null,
-      "condition": "中古",
-      "size": "",
-      "free_shipping": false,
-      "status": "available",
-      "photos": [
-        "assets/shop/item-20261114.jpg"
-      ],
-      "note": "",
-      "payment_link": ""
-    },
-    {
       "id": "aqua-fridge-355",
       "name": "AQUA 冷蔵庫 355L（2024年）",
       "category": "家電",
