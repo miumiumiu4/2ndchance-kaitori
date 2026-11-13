@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { mdToHtml, inline, parseFrontmatter, safeUrl } from "../tools/md.mjs";
 import { loadPosts, publishedPosts, todayJST } from "../tools/blog.mjs";
+import { originOnly, STORE } from "./origin.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = path.join(ROOT, "tools/build.mjs");
@@ -80,8 +81,8 @@ test("記事ページ：JSON-LD BlogPosting・関連する相談・固定CTA・�
   assert.equal(bp.headline, "過去の記事");
   assert.equal(bp.datePublished, "2026-11-01");
   assert.equal(bp.author["@type"], "Organization");
-  assert.equal(bp.author.name, "2nd chance recycle");
-  assert.equal(bp.publisher.name, "2nd chance recycle");
+  assert.equal(bp.author.name, STORE.name);
+  assert.equal(bp.publisher.name, STORE.name);
   assert.match(html, /関連する相談/);
   for (const href of ["../../kaitori/", "../../kataduke/", "../../seiri/"]) assert.ok(html.includes(`href="${href}"`), href);
   assert.match(html, /class="cta-bar"/);
@@ -114,7 +115,7 @@ test("XSS：タイトル・要約・タグ・本文の <script> はエスケー�
   assert.ok(!s.read("index.html").includes("<script>alert"));
 });
 
-test("--today で公開される記事が切り替わる（実際の content/posts）", () => {
+test("--today で公開される記事が切り替わる（実際の content/posts）", originOnly, () => {
   const a = build("2026-11-07");
   assert.ok(!a.has("blog/hajimeni"), "11/8 の記事が 11/7 に出ている");
   const b = build("2026-11-08");
@@ -171,7 +172,7 @@ test("記事の形の誤りは build を止める（日付とファイル名の�
   assert.throws(() => loadPosts(dir), /ファイル名の日付[\s\S]*status は draft か scheduled/);
 });
 
-test("実際の content/posts が読めて、見本と下書きがある", () => {
+test("実際の content/posts が読めて、見本と下書きがある", originOnly, () => {
   const posts = loadPosts(path.join(ROOT, "content/posts"), ROOT);
   const slugs = posts.map((p) => p.slug);
   for (const s of ["hajimeni", "risou-no-kurashi", "mirai-test"]) assert.ok(slugs.includes(s), s);

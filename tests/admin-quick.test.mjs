@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 const SHOP = JSON.parse(read("tests/fixtures/shop.json"));
 const clone = (o) => JSON.parse(JSON.stringify(o));
-const PIC = fs.readFileSync(path.join(ROOT, "assets/shop/industrial-fan-480.jpg")).toString("base64");
+const PIC = fs.readFileSync(path.join(ROOT, "tests/fixtures/photos/industrial-fan-480.jpg")).toString("base64");
 const pics = (n) => Array.from({ length: n }, () => ({ big: PIC, thumb: PIC }));
 
 test("商品名 → id の頭と種類：候補の言葉・候補にない言葉・英数字・どれでもなければ item", () => {

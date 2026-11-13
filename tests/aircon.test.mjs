@@ -7,12 +7,14 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { airconHref, airconItem, airconLink } from "../tools/aircon.mjs";
+import { STORE } from "./origin.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 // 関数の単体試験は「?」の無い素の URL で、設定の確認は実際の入口（予約フォームの welcome ページ・src 付き）で
 const URL_ = "https://miumiumiu4.github.io/arigatou-booking/";
-const WELCOME = "https://miumiumiu4.github.io/arigatou-booking/welcome/?src=2ndchance";
+// 入口の印（src）は店ごと（data/store.json の id。見本は 2ndchance）
+const WELCOME = "https://miumiumiu4.github.io/arigatou-booking/welcome/?src=" + STORE.id;
 const cfg = (o) => ({ AIRCON_BOOKING_URL: URL_, AIRCON_REF_PARAM: "ref", AIRCON_REF_CODE: "", ...o });
 
 test("CODE が空のとき href は素の BOOKING_URL", () => {
@@ -30,7 +32,7 @@ test("BOOKING_URL に ? があれば & でつなぐ（welcome/?src=2ndchance&ref
   assert.equal(airconHref(cfg({ AIRCON_BOOKING_URL: WELCOME })), WELCOME);
   assert.equal(airconHref(cfg({ AIRCON_BOOKING_URL: WELCOME, AIRCON_REF_CODE: "CODE" })), WELCOME + "&ref=CODE");
   assert.equal(airconHref(cfg({ AIRCON_BOOKING_URL: WELCOME, AIRCON_REF_PARAM: "partner", AIRCON_REF_CODE: "C012" })), WELCOME + "&partner=C012");
-  assert.match(airconLink(cfg({ AIRCON_BOOKING_URL: WELCOME, AIRCON_REF_CODE: "CODE" })), /href="https:\/\/miumiumiu4\.github\.io\/arigatou-booking\/welcome\/\?src=2ndchance&amp;ref=CODE"/, "HTML では &amp;");
+  assert.ok(airconLink(cfg({ AIRCON_BOOKING_URL: WELCOME, AIRCON_REF_CODE: "CODE" })).includes(`href="${WELCOME}&amp;ref=CODE"`), "HTML では &amp;");
 });
 
 test("リンクの HTML は target=_blank rel=noopener、文言と注記つき", () => {

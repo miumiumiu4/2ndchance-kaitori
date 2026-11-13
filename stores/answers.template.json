@@ -1,0 +1,77 @@
+{
+  "_how": "聞き取りの答えの白紙。stores/<店のid>/answers.json に写して埋める。書き方は stores/example/answers.json（架空の店）を見る。",
+  "id": "",
+  "repo": "",
+  "q1": {
+    "_q": "店名、住所、営業時間、定休日（latlng は Googleマップで店を長押しすると出る2つの数字）",
+    "name": "",
+    "region": "",
+    "locality": "",
+    "street": "",
+    "latlng": [],
+    "hours": "",
+    "closed": ""
+  },
+  "q2": {
+    "_q": "載せてよい電話番号と、公式LINEの有無",
+    "tel": "",
+    "line": false
+  },
+  "q3": {
+    "_q": "古物商許可の番号と公安委員会名",
+    "commission": "",
+    "number": "",
+    "holder": ""
+  },
+  "q4": {
+    "_q": "買い取る物（品目 id: 上限の目安円。null は要相談）と、買い取らない物。min_price・year_limit は全品共通の目安",
+    "buy": {},
+    "not_buy": [],
+    "min_price": null,
+    "year_limit": null
+  },
+  "q5": {
+    "_q": "出張できる地域と、出張費",
+    "radius_km": null,
+    "towns": [],
+    "travel_fee": ""
+  },
+  "q6": {
+    "_q": "回収の料金の目安（small 少量／mini 軽トラ／basic 1.5t／large 2t）",
+    "small": null,
+    "mini": null,
+    "basic": null,
+    "large": ""
+  },
+  "q7": {
+    "_q": "遺品整理・生前整理などをしているか（kinds）、間取りごとの目安",
+    "kinds": [],
+    "layouts": {}
+  },
+  "q8": {
+    "_q": "お客様の支払い方法（cash/card/paypay/bank）と、買取代金の渡し方",
+    "customer_pays": [],
+    "buyback_pays": ""
+  },
+  "q9": [
+    "",
+    "",
+    ""
+  ],
+  "q10": [
+    {
+      "q": "",
+      "a": ""
+    },
+    {
+      "q": "",
+      "a": ""
+    },
+    {
+      "q": "",
+      "a": ""
+    }
+  ],
+  "q11": [],
+  "q12": false
+}

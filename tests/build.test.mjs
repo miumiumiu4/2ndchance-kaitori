@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { originOnly } from "./origin.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PAGES = ["index.html", "kaitori/index.html", "kataduke/index.html", "seiri/index.html", "flow/index.html", "price/index.html", "privacy/index.html", "shop/index.html"];
@@ -41,7 +42,8 @@ test("各ページの JSON-LD が読めて、LocalBusiness と Service がある
 });
 
 test("各ページに固定 CTA（LINE・電話・フォーム）、空の設定は「準備中」で無効表示", async () => {
-  const { CONFIG } = await import(path.join(ROOT, "js/config.js"));
+  const { CONFIG: BASE } = await import(path.join(ROOT, "js/config.js"));
+  const CONFIG = { ...BASE, TEL: JSON.parse(read("data/store.json")).tel || "" }; // 代表番号は店の名札（data/store.json）
   for (const p of PAGES) {
     const html = read(p);
     assert.match(html, /class="cta-bar"/, p);
@@ -57,7 +59,7 @@ test("各ページに固定 CTA（LINE・電話・フォーム）、空の設定
   }
 });
 
-test("provisional: true のとき、料金ページ・トップ・フォーム・llms.txt に「仮の目安（調整中）」の帯が出る", () => {
+test("provisional: true のとき、料金ページ・トップ・フォーム・llms.txt に「仮の目安（調整中）」の帯が出る", originOnly, () => {
   const prices = JSON.parse(read("data/prices.json"));
   const pages = ["price/index.html", "index.html"];
   if (!prices.provisional) {

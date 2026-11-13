@@ -158,7 +158,7 @@ async function init(root) {
     const z = D.normalizeZip(st.zip);
     if (!z) { st.dq = null; out.textContent = st.zip ? "郵便番号は7桁で入れてください。" : ""; renderTotal(); return; }
     const table = await tableFor(z);
-    st.dq = D.deliveryQuote(z, table, prices, { store: CONFIG.STORE_LATLNG, freeShipping: S.cartFreeShipping(st.items) });
+    st.dq = D.deliveryQuote(z, table, prices, { store: SITE.STORE_LATLNG, freeShipping: S.cartFreeShipping(st.items) });
     out.innerHTML = `配送料の目安：<b data-delivery-fee>${esc(D.deliveryFeeText(st.dq))}</b>${st.dq.km !== null ? `（店から道のりでおよそ ${st.dq.km}km・${esc(st.dq.band)}）` : ""}${st.dq.note ? "<br>" + esc(st.dq.note) : ""}`;
     renderTotal();
     logOnce(st.dq);

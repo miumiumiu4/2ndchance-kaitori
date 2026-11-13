@@ -2,6 +2,7 @@
 // GitHub Actions が 1〜2分でサイトを刷り直す（README「管理画面の設定」）。
 // 計算・確かめ・変更点の要約は admin-core.js（GAS も同じ式）。写真は端末の中で縮めて JPEG にし直す（EXIF・位置情報は残らない）。
 import { CONFIG } from "./config.js";
+import { SITE } from "./site.js";
 import { CLEANUP_KINDS } from "./quote-core.js";
 import * as A from "./admin-core.js";
 import { makePhotos } from "./admin-photo.js";
@@ -359,7 +360,7 @@ ${r.photo ? `<img src="${esc(photoSrc(r.photo))}" alt="" class="admin-result-img
 <label class="admin-field"><span>種類</span><select data-r="category">${opts(cats, r.category)}</select></label>
 <label class="admin-field"><span>買取価格（円）</span><input type="text" data-r="price" inputmode="numeric" value="${esc(val(r.price))}"></label>
 <label class="admin-field"><span>買取した月</span><input type="month" data-r="date" value="${esc(r.date || "")}"></label>
-<label class="admin-field"><span>地域（市町村）</span><input type="text" data-r="area" maxlength="20" value="${esc(r.area || "")}" placeholder="例：合志市"></label>
+<label class="admin-field"><span>地域（市町村）</span><input type="text" data-r="area" maxlength="20" value="${esc(r.area || "")}" placeholder="例：${esc(SITE.TOWN || "")}"></label>
 <label class="admin-field"><span>一言（任意）</span><input type="text" data-r="comment" maxlength="200" value="${esc(r.comment || "")}"></label>
 <button type="button" class="btn btn-ghost admin-small admin-danger" data-del="${i}">この実績を消す</button>
 </fieldset>`).join("")}
@@ -369,7 +370,7 @@ function bindResults(p) {
   p.querySelector('[data-act="add-result"]').onclick = () => {
     const list = S.work.results.results;
     const first = S.items[0] ? S.items[0].id : "";
-    list.unshift({ id: A.newResultId(list.map((r) => r.id)), item_id: first, name: "", category: "家電", price: null, date: A.todayJST().slice(0, 7), area: "合志市", photo: "", comment: "" });
+    list.unshift({ id: A.newResultId(list.map((r) => r.id)), item_id: first, name: "", category: "家電", price: null, date: A.todayJST().slice(0, 7), area: SITE.TOWN || "", photo: "", comment: "" });
     renderPanel(); refreshTabs();
   };
   p.querySelectorAll("[data-row]").forEach((box) => {
