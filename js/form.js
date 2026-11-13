@@ -1,6 +1,7 @@
 // 概算フォーム（A 出張買取／B 不用品回収／C 片付け）の画面側。計算は quote-core.js に任せる。
 // 入力 → 確認画面 → 送信 → 受付番号。GAS_URL が空なら送信ボタンは「準備中」で押せず、入力と概算は画面に残す。
 import { CONFIG } from "./config.js";
+import { SITE } from "./site.js";
 import * as Q from "./quote-core.js";
 import { yen, fmtRange, estimateValueText, stickyEstimate } from "./estimate-text.js";
 import { NEWSLETTER_TEXT, isEmail, postal3, browserMeta, newsletterRecord } from "./form-common.js";
@@ -210,6 +211,21 @@ ${opLines ? `<ul>${opLines}</ul>` : ""}${hasItems ? `<ul>${lines}</ul>` : ""}${p
   const tabs = forms.length > 1
     ? `<div class="tabs" role="tablist" aria-label="フォームの種類">${forms.map((f) => `<button type="button" role="tab" id="tab-${f}" aria-controls="q-panel" aria-selected="${st.form === f}" tabindex="${st.form === f ? 0 : -1}" data-tab="${f}">${f === "B" ? "不用品回収" : "片付け<br><small>遺品整理・生前整理など</small>"}</button>`).join("")}</div>`
     : "";
+  // ご紹介（不用品回収・片付けのフォームだけ）。チェックを入れると紹介者の欄が開く
+  const ref = SITE.REFERRAL;
+  const refBlock = forms.includes("C")
+    ? `<fieldset class="ref-box"><legend>ご紹介<span class="opt">任意</span></legend>
+${ref ? `<p class="campaign-strip" style="margin-bottom:10px"><b>${esc(ref.title)}</b>：遺品整理・生前整理・ゴミ屋敷・空き家の片付けがご成約になると、ご紹介者さまに${typeof ref.reward_yen === "number" ? "1件につき<b>" + esc(ref.reward_yen.toLocaleString("ja-JP")) + "円</b>" : ""}${ref.gift ? "＋" + esc(ref.gift) : ""}。</p>` : ""}
+<label class="choice" for="f-ref"><input type="checkbox" id="f-ref" name="referred"><div><b>ご紹介で知りました</b><span>紹介してくださった方を書いてください</span></div></label>
+<div id="f-ref-fields" hidden>
+<label class="f" for="f-ref-name">ご紹介者のお名前<span class="opt">任意</span></label>
+<input type="text" id="f-ref-name" name="ref_name" autocomplete="off" maxlength="40">
+<label class="f" for="f-ref-contact">ご紹介者の連絡先（電話かメール）<span class="opt">任意</span></label>
+<input type="text" id="f-ref-contact" name="ref_contact" autocomplete="off" maxlength="80">
+<p class="hint">紹介料のご連絡に使います。ご紹介者の了解を得てから書いてください。</p>
+</div>
+</fieldset>`
+    : "";
   root.innerHTML = `${tabs}
 <form class="qform" novalidate>
 <div id="q-panel"${forms.length > 1 ? ` role="tabpanel" aria-labelledby="tab-${st.form}"` : ""}></div>
@@ -224,7 +240,7 @@ ${opLines ? `<ul>${opLines}</ul>` : ""}${hasItems ? `<ul>${lines}</ul>` : ""}${p
 <label class="f" for="f-email">メールアドレス<span class="req">必須</span></label>
 <input type="email" id="f-email" name="email" autocomplete="email" inputmode="email">
 <p class="hint">受付番号つきの確認メールをお送りします。</p>
-<label class="choice" style="margin-top:10px" for="f-news"><input type="checkbox" id="f-news" name="newsletter" checked><div><b>${esc(NEWSLETTER_TEXT)}</b><span>${esc(CONFIG.MAIL_PERK_TEXT || "")}${CONFIG.MAIL_PERK_TEXT ? "。" : ""}いつでも配信を止められます。</span></div></label>
+<label class="choice" style="margin-top:10px" for="f-news"><input type="checkbox" id="f-news" name="newsletter" checked><div><b>${esc(NEWSLETTER_TEXT)}</b><span>${esc(SITE.MAIL_PERK_TEXT || "")}${SITE.MAIL_PERK_TEXT ? "。" : ""}いつでも配信を止められます。</span></div></label>
 <label class="f" for="f-line">LINE の名前<span class="opt">任意</span></label>
 <input type="text" id="f-line" name="line_name" autocomplete="off" maxlength="40">
 <p class="hint">LINE で写真を送るときに、どなたか分かるように。</p>
@@ -247,7 +263,7 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
 <div class="choices">${PAYMENTS.map((p, i) => `<label class="choice"><input type="radio" name="payment" value="${p.id}"${i === 0 ? " checked" : ""}><div><b>${esc(p.label)}</b></div></label>`).join("")}</div>
 <p class="hint">回収・片付けの費用は、現金・クレジットカード・PayPay でお支払いいただけます。買取代金のお受け取りは現金が基本で、高額の場合は銀行振込です。</p>
 </fieldset>
-<label class="f" for="f-note">ご要望・伝えたいこと<span class="opt">任意</span></label>
+${refBlock}<label class="f" for="f-note">ご要望・伝えたいこと<span class="opt">任意</span></label>
 <textarea id="f-note" name="note" placeholder="例：2階から降ろしたい、駐車場がない、平日の夕方が都合がよい など"></textarea>
 <div class="hp" aria-hidden="true"><label>空欄のままにしてください<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 <label class="choice" style="margin-top:16px" for="f-consent"><input type="checkbox" id="f-consent" name="consent"><div><b><a href="${base}privacy/" target="_blank" rel="noopener">個人情報の取扱い</a>に同意します</b><span>必須</span></div></label>
@@ -377,6 +393,8 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
     st.tsubo = e.target.value;
     renderEst();
   });
+  const refBox = form.elements.referred;
+  if (refBox) refBox.addEventListener("change", () => { root.querySelector("#f-ref-fields").hidden = !refBox.checked; });
   form.elements.name_kana.addEventListener("blur", (e) => { e.target.value = toKata(e.target.value).trim(); });
   form.elements.tel.addEventListener("blur", (e) => { e.target.value = toHalf(e.target.value).trim(); });
   form.elements.zip.addEventListener("blur", (e) => { e.target.value = toHalf(e.target.value).replace(/[^0-9-]/g, ""); });
@@ -448,6 +466,7 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
       photos: { count: files.length, names: files.map((f) => f.name.slice(0, 80)).slice(0, 20) },
       payment: (PAYMENTS.find((p) => p.id === el.payment.value) || PAYMENTS[0]).id,
       note: el.note.value.trim().slice(0, 2000),
+      referrer: st.form !== "A" && el.referred && el.referred.checked ? { name: el.ref_name.value.trim().slice(0, 40), contact: toHalf(el.ref_contact.value).trim().slice(0, 80) } : null,
       consent: el.consent.checked,
       website: el.website.value,
       submitted_at: new Date().toISOString(),
@@ -500,6 +519,7 @@ ${dateBlock(1)}${dateBlock(2)}${dateBlock(3)}
       ["お支払い方法", PAYMENTS.find((x) => x.id === p.payment).label],
       ["ご要望", p.note || "（なし）"]
     ];
+    if (p.referrer) rows.push(["ご紹介", "ご紹介で知りました" + (p.referrer.name ? "\nご紹介者：" + p.referrer.name : "") + (p.referrer.contact ? "\n連絡先：" + p.referrer.contact : "")]);
     const ready = !!CONFIG.GAS_URL;
     confirmBox.innerHTML = `<h3 tabindex="-1" id="q-confirm-h">入力内容の確認</h3>
 <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>

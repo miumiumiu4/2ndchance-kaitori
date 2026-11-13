@@ -133,3 +133,47 @@ test("公開用の写し（--out）に CFG_* が差し込まれ、リポジト�
     fs.rmSync(out, { recursive: true, force: true });
   }
 });
+
+test("お店の情報（data/site.json）：営業時間・年中無休・ご紹介キャンペーンの帯・js/site.js", async () => {
+  const site = JSON.parse(read("data/site.json"));
+  const top = read("index.html");
+  assert.ok(top.includes("営業時間：" + site.hours), "フッターの営業時間");
+  const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(top)[1]);
+  assert.equal(ld["@graph"].find((x) => x["@type"] === "LocalBusiness").openingHours, site.opening_hours_spec);
+  const c = site.referral_campaign;
+  const banner = /<!--build:campaign-->([\s\S]*?)<!--\/build:campaign-->/;
+  if (c && c.active) {
+    const reward = c.reward_yen.toLocaleString("ja-JP") + "円";
+    for (const p of ["index.html", "seiri/index.html"]) {
+      const b = banner.exec(read(p))[1];
+      assert.match(b, /class="campaign"/, p);
+      assert.ok(b.includes("<b>" + reward + "</b>") && b.includes(c.gift), p + " に金額と贈り物");
+    }
+    // トップはヒーローのすぐ下（最初のサービスの前）
+    assert.ok(top.indexOf('class="campaign"') > top.indexOf('class="hero"') && top.indexOf('class="campaign"') < top.indexOf('id="h-what"'));
+    // 遺品整理などのページは4つのサービスの前
+    const seiri = read("seiri/index.html");
+    assert.ok(seiri.indexOf('class="campaign"') < seiri.indexOf('id="ihin"'));
+    assert.match(read("kataduke/index.html"), /class="campaign-strip"/);
+    assert.match(read("flow/index.html"), /id="faq-referral"/);
+  } else assert.ok(!banner.exec(top)[1].includes('class="campaign"'));
+  const { SITE } = await import(path.join(ROOT, "js/site.js"));
+  assert.equal(SITE.HOURS, site.hours);
+  assert.equal(SITE.MAIL_PERK_TEXT, site.mail_perk_text);
+  // お知らせは空ならトップに出さない
+  const notice = /<!--build:notice-->([\s\S]*?)<!--\/build:notice-->/.exec(top)[1];
+  assert.equal(notice.includes("site-notice"), !!site.notice);
+  // ナナチキなどお店の商品名は書かない
+  assert.ok(!/ナナチキ/.test(JSON.stringify(site)));
+});
+
+test("公開用の写し：CFG_HOURS が data/site.json より勝つ", () => {
+  const out = path.join(ROOT, "node_modules", ".tmp-site-test2");
+  try {
+    execFileSync(process.execPath, [path.join(ROOT, "tools/build.mjs"), "--out", out], { env: { ...process.env, CFG_HOURS: "9:00〜18:00（試験）" }, encoding: "utf8" });
+    assert.match(fs.readFileSync(path.join(out, "index.html"), "utf8"), /営業時間：9:00〜18:00（試験）/);
+    assert.match(fs.readFileSync(path.join(out, "js/site.js"), "utf8"), /9:00〜18:00（試験）/);
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});

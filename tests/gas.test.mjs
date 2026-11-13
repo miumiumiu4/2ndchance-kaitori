@@ -8,7 +8,7 @@ const read = (p) => fs.readFileSync(new URL("../" + p, import.meta.url), "utf8")
 function load() {
   const ctx = {};
   vm.createContext(ctx);
-  vm.runInContext(read("gas/Prices.gs") + "\n" + read("gas/QuoteCore.gs") + "\n" + read("gas/Code.gs") + "\nthis.G = { HEADERS, validate_, colOf_, rowOf_, cell_, logDelivery_, quoteStr_ };", ctx);
+  vm.runInContext(read("gas/Prices.gs") + "\n" + read("gas/QuoteCore.gs") + "\n" + read("gas/Code.gs") + "\nthis.G = { HEADERS, validate_, colOf_, rowOf_, cell_, logDelivery_, quoteStr_, referrer_ };", ctx);
   return ctx.G;
 }
 
@@ -39,4 +39,13 @@ test("受付：メールは必須", () => {
 test("配送料ログ：郵便番号の形が違えば書かない", () => {
   const { logDelivery_ } = load();
   assert.equal(logDelivery_({ zip: "12-34" }).ok, false);
+});
+
+test("ご紹介：B・C の「ご紹介で知りました」だけ列に入り、列は末尾に2つ", () => {
+  const { HEADERS, referrer_ } = load();
+  assert.deepEqual([...HEADERS.slice(-2)], ["ご紹介者", "ご紹介者の連絡先"]);
+  assert.equal(referrer_({ form: "C", referrer: null }), null);
+  assert.equal(referrer_({ form: "A", referrer: { name: "x" } }), null, "買取フォームは対象外");
+  assert.deepEqual({ ...referrer_({ form: "B", referrer: { name: "紹介者テスト", contact: "x".repeat(100) } }) }, { name: "紹介者テスト", contact: "x".repeat(80) });
+  assert.match(read("gas/Code.gs"), /ご紹介の件数（種類別）/);
 });

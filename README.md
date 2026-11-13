@@ -15,7 +15,8 @@
 | `privacy/` | 個人情報の取扱い（**仮**。オーナー確定前） |
 | `404.html` | 見つからないページ |
 | `css/site.css` | 見た目（モバイル優先・文字大きめ・コントラスト 4.5 以上） |
-| `js/config.js` | 設定 1か所（サイト名・URL・LINE・電話・GAS・営業時間・エアコン送客） |
+| `js/config.js` | 設定（サイト名・URL・LINE・電話・GAS・店の住所と位置・エアコン送客） |
+| `data/site.json` | お店の情報（営業時間・お知らせ・上部の帯・メール会員の特典・ご紹介キャンペーン）。管理画面で直せる。build が `js/site.js`（生成物）と各ページに差し込む |
 | `tools/aircon.mjs` | ありがとうエアコンの予約フォームへのリンク（紹介番号のパラメータ）を作る純粋関数 |
 | `js/quote-core.js` | 概算の式（純粋関数）。画面・GAS・AI 向け API が同じ式を使う |
 | `js/form.js` | フォームの画面（入力→確認→送信→受付番号）。フォームが見えたら固定バーの上段に概算パネル |
@@ -67,12 +68,20 @@ npm test               # 全部緑になってからコミット
 | `AREA_CENTER` | `熊本県合志市` | — |
 | `STORE_ADDRESS` | 店の住所（チラシに印刷された公開情報）。フッターと LocalBusiness の `address` | 中心の市町村名だけ |
 | `STORE_LATLNG` | 店の位置 `[緯度, 経度]`。配送料の距離の起点（幾久富の町域中心） | — |
-| `HOURS` | 人向けの営業時間。既定 `10:00〜19:00`（チラシの表記） | 「準備中」 |
-| `OPENING_HOURS_SPEC` | 任意。schema.org の形。定休日が分かるまで入れない | JSON-LD から省略 |
-| `MAIL_PERK_TEXT` | メール会員の登録特典の文言（既定「登録特典は準備中です」） | — |
-| `OPENING_NOTE` | 上部のお知らせ帯。`LINE_URL` と `TEL` が両方入るまでだけ出る | 帯を出さない |
 
-**電話・LINE・GAS の URL はリポジトリに書かない**（`tests/secret-grep.mjs` が止める）。GitHub の Settings → Secrets and variables → Actions → **Variables** に `CFG_SITE_URL`・`CFG_LINE_URL`・`CFG_TEL`・`CFG_GAS_URL`・`CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`（エアコン送客は `CFG_AIRCON_REF_PARAM`・`CFG_AIRCON_REF_CODE`）として入れると、公開のときに `node tools/build.mjs --out _site` が公開用の写しにだけ差し込む。
+### 1-2. `data/site.json`（お店の情報。管理画面で直せる）
+| 項目 | 中身 | 空のとき |
+|---|---|---|
+| `hours` | 人向けの営業時間。今は `10:00〜19:00（年中無休）`（チラシの表記） | 「準備中」 |
+| `opening_hours_spec` | schema.org の形（`Mo-Su 10:00-19:00`）。JSON-LD の `openingHours` | JSON-LD から省略 |
+| `notice` | トップのヒーローの上に出す「お知らせ」（臨時休業・セールなど） | 出さない |
+| `opening_note` | 上部のお知らせ帯。`LINE_URL` と `TEL` が両方入るまでだけ出る | 帯を出さない |
+| `mail_perk_text` | メール会員の登録特典の文言 | — |
+| `referral_campaign` | ご紹介キャンペーン：`active`・`title`・`services`（`ihin` など）・`reward_yen`（1件の紹介料）・`gift`・`condition`・`note`。`active: true` のあいだ、トップのヒーローのすぐ下と `seiri/` の上に目立つ帯、`kataduke/` に細い帯、片付けフォームに「ご紹介で知りました」の欄 | `active: false` で全部消える |
+
+**優先順**：Actions Variables の `CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`・`CFG_MAIL_PERK_TEXT`（入っているときだけ・公開の写しだけ）＞ `data/site.json` ＞ `js/config.js`。管理画面で営業時間を直しても変わらないときは、Variables の `CFG_HOURS` を消す。
+
+**電話・LINE・GAS の URL はリポジトリに書かない**（`tests/secret-grep.mjs` が止める）。GitHub の Settings → Secrets and variables → Actions → **Variables** に `CFG_SITE_URL`・`CFG_LINE_URL`・`CFG_TEL`・`CFG_GAS_URL`・`CFG_HOURS`・`CFG_OPENING_HOURS_SPEC`・`CFG_OPENING_NOTE`・`CFG_MAIL_PERK_TEXT`（どれも任意。入れると `data/site.json` より勝つ。エアコン送客は `CFG_AIRCON_REF_PARAM`・`CFG_AIRCON_REF_CODE`）として入れると、公開のときに `node tools/build.mjs --out _site` が公開用の写しにだけ差し込む。
 
 ### エアコン送客の設定（ありがとうエアコン）
 `seiri/` の4か所・`kataduke/` の「片付けの後のエアコン」・トップの「6. 申し込む」に、提携店「ありがとうエアコン」の予約フォームへのリンクを出す。リンクは `js/config.js` の3項目から `tools/aircon.mjs` が作り、build が差し込み口（`aircon-item`・`aircon-card`・`aircon-link`）に入れる。ページに href を手で書かない。

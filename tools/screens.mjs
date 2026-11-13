@@ -66,6 +66,17 @@ try {
     check("記事ページ 390px：横スクロールなし", (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
     await page.screenshot({ path: path.join(ROOT, "screens", "blog-post-390.png"), fullPage: true });
     await page.goto(BASE, { waitUntil: "networkidle" });
+    // ご紹介キャンペーン：トップはヒーローのすぐ下に目立つ帯、遺品整理などのページも上に
+    const SITE = JSON.parse(fs.readFileSync(path.join(ROOT, "data/site.json"), "utf8"));
+    if (SITE.referral_campaign && SITE.referral_campaign.active) {
+      const want = SITE.referral_campaign.reward_yen.toLocaleString("ja-JP") + "円";
+      const camp = await page.evaluate(() => { const c = document.querySelector(".campaign"); const h = document.querySelector(".hero"); return c ? { text: c.textContent, below: c.getBoundingClientRect().top >= h.getBoundingClientRect().bottom - 1, nextIsWhat: !!c.nextElementSibling && c.nextElementSibling.matches("section[aria-labelledby=h-what]"), bg: getComputedStyle(c).backgroundColor } : null; });
+      check("トップ：ご紹介キャンペーンの帯がヒーローのすぐ下（1件につき金額と贈り物）", !!camp && camp.below && camp.nextIsWhat && camp.text.includes(want) && camp.text.includes(SITE.referral_campaign.gift), camp ? camp.text.slice(0, 60) : "なし");
+      await page.locator(".campaign").screenshot({ path: path.join(ROOT, "screens", "campaign-390.png") });
+      await page.goto(BASE + "seiri/", { waitUntil: "networkidle" });
+      check("遺品整理などのページ：4つのサービスの前にキャンペーンの帯", await page.evaluate(() => { const c = document.querySelector(".campaign"); return !!c && !!(c.compareDocumentPosition(document.getElementById("ihin")) & Node.DOCUMENT_POSITION_FOLLOWING); }));
+      await page.goto(BASE, { waitUntil: "networkidle" });
+    }
     check("トップ：最新の記事が出る", (await page.locator("#h-posts ~ ul .post-card, section[aria-labelledby=h-posts] .post-card").count()) >= 1);
     await ctx.close();
   }
@@ -164,6 +175,25 @@ try {
   await page.goto(BASE + "kataduke/?kind=akiya#form-c", { waitUntil: "networkidle" });
   await page.waitForSelector("[role=tab]");
   check("#form-c と ?kind=akiya で片付け・空き家が選ばれる", (await page.getAttribute("#tab-C", "aria-selected")) === "true" && (await page.isChecked('input[name=kind][value="akiya"]')));
+  // ご紹介：チェックを入れると紹介者の欄が開き、確認画面に出る
+  check("片付けのフォーム：「ご紹介で知りました」があり、紹介者の欄は閉じている", (await page.isVisible("#f-ref")) && !(await page.isVisible("#f-ref-name")));
+  await page.check("#f-ref");
+  check("片付けのフォーム：チェックで紹介者の名前・連絡先の欄が開く", (await page.isVisible("#f-ref-name")) && (await page.isVisible("#f-ref-contact")));
+  await page.fill("#f-ref-name", "紹介者テスト");
+  await page.fill("#f-ref-contact", "test" + "@" + "example.invalid");
+  await page.click('label.choice:has(input[value="2DK・2LDK"])');
+  await page.fill("#f-name", "しけん");
+  await page.fill("#f-tel", "0" + "9000000000");
+  await page.fill("#f-addr", "熊本県合志市（試験）");
+  await page.fill("#f-email", "test" + "@" + "example.invalid");
+  await page.fill("#date1", await page.getAttribute("#date1", "min"));
+  await page.check("#f-consent");
+  await page.click("form.qform button[type=submit]");
+  await page.waitForSelector("#q-confirm:not([hidden])");
+  check("片付けのフォーム：確認画面に「ご紹介」と紹介者", (await page.textContent("#q-confirm")).includes("ご紹介者：紹介者テスト"));
+  await page.goto(BASE + "kaitori/", { waitUntil: "networkidle" });
+  await page.waitForSelector("form.qform");
+  check("買取のフォームには「ご紹介」の欄を出さない", (await page.locator("#f-ref").count()) === 0);
   await ctx.close();
 
   // 固定バーの概算パネル：ページ上部では出さず、フォームの下の方（メール・郵便番号）まで来ても金額が見える
@@ -203,7 +233,9 @@ try {
     check(`${label} ${w}px：最下部で送信ボタン・フッターが固定バーに隠れない`, gap > 0 && footGap >= 0, `ボタンとの間 ${Math.round(gap)}px／フッターとの間 ${Math.round(footGap)}px`);
     // タップで概算の箱へ
     await pg.click("#cta-est");
-    await pg.waitForTimeout(800);
+    // なめらかなスクロールが止まるまで待つ（ページが長いと 800ms では終わらない）
+    await pg.waitForTimeout(300);
+    for (let i = 0, last = -1; i < 30; i++) { const y = await pg.evaluate(() => window.scrollY); if (y === last) break; last = y; await pg.waitForTimeout(200); }
     const top = await pg.evaluate(() => document.querySelector("#q-est").getBoundingClientRect().top);
     check(`${label} ${w}px：パネルをタップすると概算の箱へ`, top >= -2 && top < 120, `箱の上端 ${Math.round(top)}px`);
     await c.close();

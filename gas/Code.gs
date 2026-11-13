@@ -27,7 +27,7 @@ var HEADERS = [
   'メルマガ', '同意日時', '同意文(指紋)', '同日査定',
   '商品ID', '商品名', '商品代', '受け取り方法', '配送区分', '配送料', 'お支払い目安',
   'ページ', '参照元', 'utm_source', 'utm_medium', 'utm_campaign', '端末', '言語', '画面',
-  '点数'
+  '点数', 'ご紹介者', 'ご紹介者の連絡先'
 ];
 var MEMBER_SHEET = 'メール会員';
 var MEMBER_HEADERS = ['メール', 'お名前', '同意日時', '出典フォーム', '受付番号', '状態', '同意文(指紋)', '更新日時'];
@@ -112,6 +112,13 @@ function validate_(b) {
   if (!isEmail_(c.email)) return 'メールアドレスを確かめてください';
   if (!b.dates || !b.dates.length) return '第1希望の日付が必要です';
   return '';
+}
+
+// ご紹介（不用品回収・片付けのフォームの「ご紹介で知りました」）。無ければ null
+function referrer_(b) {
+  var r = b && b.referrer;
+  if (!r || b.form === 'A') return null;
+  return { name: String(r.name || '').slice(0, 40), contact: String(r.contact || '').slice(0, 80) };
 }
 
 function isEmail_(s) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s || '')); }
@@ -224,6 +231,9 @@ function appendRow_(ss, id, b, re, match) {
   o['写真(枚)'] = (b.photos && b.photos.count) || 0;
   o['写真(ファイル名)'] = ((b.photos && b.photos.names) || []).join(', ');
   o['同日査定'] = re.same_day ? 'あり' : '';
+  var rf = referrer_(b);
+  o['ご紹介者'] = rf ? rf.name || '（名前なし）' : '';
+  o['ご紹介者の連絡先'] = rf ? rf.contact : '';
   sh.appendRow(rowOf_(o));
 }
 
@@ -297,6 +307,7 @@ function ensureDashboard_(ss) {
     ['流入元別（utm_source）', count('utm_source', '流入元')],
     ['参照元別', count('参照元', '参照元')],
     ['メルマガ同意率', '=IFERROR(COUNTIF(' + col('メルマガ') + ',"同意")/(COUNTIF(' + col('メルマガ') + ',"同意")+COUNTIF(' + col('メルマガ') + ',"不同意")),0)'],
+    ['ご紹介の件数（種類別）', '=QUERY({' + col('種類') + ',' + col('ご紹介者') + '},"select Col1, count(Col2) where Col2 <> \'\' group by Col1 label Col1 \'種類\', count(Col2) \'件数\'",0)'],
     ['配送料の計算（郵便番号上3桁別）', '=QUERY({' + L + 'C2:C},"select Col1, count(Col1) where Col1 <> \'\' group by Col1 order by count(Col1) desc label Col1 \'上3桁\', count(Col1) \'件数\'",0)']
   ];
   // 横に並べる（1ブロック＝3列）
@@ -491,6 +502,7 @@ function notifyOwner_(id, b, re, match) {
     '写真：' + ((b.photos && b.photos.count) || 0) + '枚（本体は LINE で届く予定）',
     '支払い方法：' + (PAYMENT_NAMES[b.payment] || ''),
     '要望：' + (b.note || 'なし'),
+    referrer_(b) ? 'ご紹介：あり（ご紹介者 ' + (referrer_(b).name || '名前なし') + '／連絡先 ' + (referrer_(b).contact || 'なし') + '）→ ご成約なら紹介料の対象' : 'ご紹介：なし',
     metaLine_(b),
     '',
     '→ お客様へ電話して日時を確定してください。'

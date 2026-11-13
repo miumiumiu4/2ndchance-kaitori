@@ -3,6 +3,7 @@
 // → 配送なら郵便番号から配送料の目安（1回の注文で1回分）→ 確認画面 → 送信 → 受付番号。
 // 金額の式は shop-core.js（商品代・カートの合計）と delivery-core.js（配送料）。カートの保存は cart.js。GAS_URL が空なら送信は「準備中」。
 import { CONFIG } from "./config.js";
+import { SITE } from "./site.js";
 import * as S from "./shop-core.js";
 import * as D from "./delivery-core.js";
 import { getCart, setCart, onCartChange } from "./cart.js";
@@ -92,7 +93,7 @@ async function init(root) {
 <label class="f" for="o-email">メールアドレス<span class="req">必須</span></label>
 <input type="email" id="o-email" name="email" autocomplete="email" inputmode="email">
 <p class="hint">受付番号つきの確認メールをお送りします。</p>
-<label class="choice" style="margin-top:10px" for="o-news"><input type="checkbox" id="o-news" name="newsletter" checked><div><b>${esc(NEWSLETTER_TEXT)}</b><span>${esc(CONFIG.MAIL_PERK_TEXT || "")}${CONFIG.MAIL_PERK_TEXT ? "。" : ""}いつでも配信を止められます。</span></div></label>
+<label class="choice" style="margin-top:10px" for="o-news"><input type="checkbox" id="o-news" name="newsletter" checked><div><b>${esc(NEWSLETTER_TEXT)}</b><span>${esc(SITE.MAIL_PERK_TEXT || "")}${SITE.MAIL_PERK_TEXT ? "。" : ""}いつでも配信を止められます。</span></div></label>
 <label class="f" for="o-tel">電話番号<span class="opt">電話か LINE の名前のどちらか</span></label>
 <input type="tel" id="o-tel" name="tel" autocomplete="tel" inputmode="tel">
 <label class="f" for="o-line">LINE の名前<span class="opt">任意</span></label>

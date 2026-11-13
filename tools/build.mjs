@@ -38,9 +38,16 @@ const { CONFIG: BASE_CONFIG } = await import(pathToFileURL(path.join(ROOT, "js/c
 const QC = await import(pathToFileURL(path.join(ROOT, "js/quote-core.js")).href);
 const SC = await import(pathToFileURL(path.join(ROOT, "js/shop-core.js")).href);
 
+const readJSON = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
+
+// お店の情報（data/site.json。管理画面で直せる）を設定に重ねる。優先順：CFG_*（公開の写しだけ）＞ data/site.json ＞ js/config.js
+const SITE_DATA = readJSON("data/site.json");
+const SITE_KEYS = { HOURS: "hours", OPENING_HOURS_SPEC: "opening_hours_spec", OPENING_NOTE: "opening_note", MAIL_PERK_TEXT: "mail_perk_text", NOTICE: "notice" };
 // 公開用の写しにだけ、環境変数（GitHub の Actions Variables）で値を差し込む
 const OVERRIDABLE = ["SITE_URL", "LINE_URL", "TEL", "GAS_URL", "HOURS", "OPENING_HOURS_SPEC", "OPENING_NOTE", "AIRCON_REF_PARAM", "AIRCON_REF_CODE", "MAIL_PERK_TEXT"];
 const CONFIG = { ...BASE_CONFIG };
+for (const [k, key] of Object.entries(SITE_KEYS)) if (typeof SITE_DATA[key] === "string") CONFIG[k] = SITE_DATA[key];
+const CAMPAIGN = SITE_DATA.referral_campaign && SITE_DATA.referral_campaign.active ? SITE_DATA.referral_campaign : null;
 if (OUT) {
   for (const k of OVERRIDABLE) {
     const v = process.env["CFG_" + k];
@@ -49,7 +56,6 @@ if (OUT) {
 }
 if (CONFIG.SITE_URL && !CONFIG.SITE_URL.endsWith("/")) CONFIG.SITE_URL += "/";
 
-const readJSON = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
 const PRICES = readJSON("data/prices.json");
 const ITEMS = readJSON("data/items.json");
 const AREAS = readJSON("data/areas.json");
@@ -243,7 +249,7 @@ function areas(page, rel) {
 }
 
 function faqList() {
-  return FAQ.faq.map((f) => `<details class="faq"><summary>${esc(f.q)}</summary><div>${esc(f.a)}</div></details>`).join("\n");
+  return FAQ.faq.map((f) => `<details class="faq"${f.id ? ` id="faq-${esc(f.id)}"` : ""}><summary>${esc(f.q)}</summary><div>${esc(f.a)}</div></details>`).join("\n");
 }
 
 function priceTables(page, rel) {
@@ -324,6 +330,33 @@ function resultsCards(page, rel, limit) {
     })
     .join("")}</ul>
 <p class="muted">買取実績は過去の例です。同じ品物でも状態や時期で金額は変わります。</p>`;
+}
+
+// ---------- お知らせ・ご紹介キャンペーン（data/site.json） ----------
+const nl2br = (s) => esc(s).replace(/\r?\n/g, "<br>");
+function noticeBox() {
+  return CONFIG.NOTICE ? `<div class="callout site-notice" role="note"><b>お知らせ</b><br>${nl2br(CONFIG.NOTICE)}</div>` : "";
+}
+const campaignServices = () => (CAMPAIGN.services || []).map((k) => QC.CLEANUP_KINDS[k]).filter(Boolean);
+const rewardText = () => (isNum(CAMPAIGN.reward_yen) ? yen(CAMPAIGN.reward_yen).replace("¥", "") + "円" : "");
+// 目立つ帯（トップのヒーローの下・遺品整理などのページの上）
+function campaignBanner(page, rel) {
+  if (!CAMPAIGN) return "";
+  const reward = rewardText();
+  return `<aside class="campaign" aria-label="${esc(CAMPAIGN.title)}">
+<p class="campaign-for">${campaignServices().map(esc).join("・")}</p>
+<p class="campaign-title">${esc(CAMPAIGN.title)}</p>
+<p class="campaign-reward">${reward ? `ご紹介1件につき<b>${esc(reward)}</b>` : ""}${CAMPAIGN.gift ? `<span class="campaign-gift">${reward ? "＋" : ""}${esc(CAMPAIGN.gift)}をプレゼント</span>` : ""}</p>
+<p class="campaign-cond">${esc(CAMPAIGN.condition || "")}${CAMPAIGN.condition ? "。" : ""}${esc(CAMPAIGN.note || "")}</p>
+<ul class="campaign-tags"><li>無料見積り</li><li>出張対応</li><li>丁寧迅速</li><li>秘密厳守</li></ul>
+<p class="campaign-more"><a href="${rel}kataduke/#form-c">片付けのご相談・お申し込み</a>（フォームの「ご紹介で知りました」に紹介者を書いてください）／<a href="${rel}flow/#faq-referral">紹介料の受け取り方</a></p>
+</aside>`;
+}
+// 細い帯（不用品回収・片付けのページ）
+function campaignStrip(page, rel) {
+  if (!CAMPAIGN) return "";
+  const reward = rewardText();
+  return `<p class="campaign-strip"><b>${esc(CAMPAIGN.title)}</b>：${campaignServices().map(esc).join("・")}のご紹介がご成約になったら、${reward ? `1件につき<b>${esc(reward)}</b>` : ""}${CAMPAIGN.gift ? (reward ? "＋" : "") + esc(CAMPAIGN.gift) : ""}。<a href="${rel}flow/#faq-referral">受け取り方</a></p>`;
 }
 
 // ---------- 販売ページ ----------
@@ -488,6 +521,9 @@ const FRAGMENTS = {
   "shop-extras": (p, rel) => shopExtras(p, rel),
   "shop-top": (p, rel) => shopTop(rel),
   hours: () => (CONFIG.HOURS ? esc(CONFIG.HOURS) : PENDING),
+  notice: () => noticeBox(),
+  campaign: (p, rel) => campaignBanner(p, rel),
+  "campaign-strip": (p, rel) => campaignStrip(p, rel),
   "latest-posts": (p, rel) => latestPosts(rel),
   // ありがとうエアコンへの送客（リンクは config の AIRCON_* から tools/aircon.mjs が作る）
   "aircon-item": () => airconItem(CONFIG),
@@ -633,6 +669,11 @@ ${body}
 `;
 }
 const quoteCoreGs = () => coreGs("js/quote-core.js", "QuoteCore");
+// 画面の JS（フォーム・注文）が読む お店の情報。data/site.json と CFG_* から作る（手で直さない）
+function siteJs() {
+  const site = { HOURS: CONFIG.HOURS || "", NOTICE: CONFIG.NOTICE || "", OPENING_NOTE: CONFIG.OPENING_NOTE || "", MAIL_PERK_TEXT: CONFIG.MAIL_PERK_TEXT || "", REFERRAL: CAMPAIGN ? { title: CAMPAIGN.title, reward_yen: CAMPAIGN.reward_yen, gift: CAMPAIGN.gift, services: CAMPAIGN.services } : null };
+  return `// 自動生成：tools/build.mjs が data/site.json から作る。手で直さない（直すのは data/site.json か管理画面）。\nexport const SITE = ${JSON.stringify(site, null, 2)};\n`;
+}
 function pricesGs() {
   return `// 自動生成：tools/build.mjs が data/prices.json から作る。手で直さない。
 // 価格を変えたら build → このファイルを Apps Script に反映（gas/README.md）。
@@ -842,6 +883,7 @@ outputs.set("sitemap.xml", sitemap());
 outputs.set("robots.txt", robots());
 outputs.set("llms.txt", llms());
 outputs.set("gas/QuoteCore.gs", quoteCoreGs());
+outputs.set("js/site.js", siteJs());
 outputs.set("gas/Prices.gs", pricesGs());
 outputs.set("gas/ShopCore.gs", coreGs("js/shop-core.js", "ShopCore"));
 outputs.set("gas/Shop.gs", `// 自動生成：tools/build.mjs が data/shop.json から作る。手で直さない。\n// 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。\nvar SHOP = ${JSON.stringify(SHOP, null, 2)};\n`);

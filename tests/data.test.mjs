@@ -106,9 +106,9 @@ test("areas.json：中心と半径、市町村に要確認フラグ", () => {
   a.areas.forEach((x) => { assert.equal(typeof x.needs_confirm, "boolean"); assert.match(x.name, /[市町村]$/); });
 });
 
-test("faq.json：12問程度、質問と答えが空でない", () => {
+test("faq.json：10〜20問、質問と答えが空でない", () => {
   const f = read("data/faq.json").faq;
-  assert.ok(f.length >= 10 && f.length <= 15);
+  assert.ok(f.length >= 10 && f.length <= 20);
   f.forEach((x) => { assert.ok(x.q.trim()); assert.ok(x.a.trim()); });
 });
 

@@ -307,3 +307,22 @@ html:has(body.has-cta-cart) { scroll-padding-bottom: calc(var(--cta-h) + 50px + 
 .cart-sum { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 10px 0 0; padding: 8px 4px 0; border-top: 2px solid var(--green-soft); font-weight: 800; }
 .cart-sum b { color: var(--accent); font-size: 1.15rem; }
 .cart-h { font-weight: 900; margin: 12px 0 6px; }
+
+/* お知らせ（data/site.json の notice） */
+.site-notice { margin: 0 0 18px; }
+/* ご紹介キャンペーン（data/site.json の referral_campaign）：トップ・遺品整理などのページの帯と、片付けページの細い帯 */
+.campaign { background: var(--accent); color: #fff; border-radius: var(--radius); padding: 18px 16px; margin: 0 0 18px; box-shadow: 0 3px 0 #7c2e08; }
+.campaign p { margin: 0; }
+.campaign a { color: #fff; font-weight: 800; }
+.campaign-for { font-size: .9rem; font-weight: 800; background: rgba(0,0,0,.18); display: inline-block; padding: 2px 10px; border-radius: 10px; }
+.campaign-title { font-size: 1.5rem; font-weight: 900; margin-top: 6px !important; letter-spacing: .04em; }
+.campaign-reward { font-size: 1.15rem; font-weight: 800; margin-top: 4px !important; line-height: 1.5; }
+.campaign-reward b { display: inline-block; font-size: 2.3rem; color: var(--warn-bg); margin: 0 4px; line-height: 1.2; }
+.campaign-gift { display: block; font-size: 1.1rem; }
+.campaign-cond { font-size: .95rem; margin-top: 8px !important; }
+.campaign-tags { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.campaign-tags li { background: #fff; color: var(--accent); font-weight: 900; font-size: .85rem; border-radius: 999px; padding: 2px 12px; }
+.campaign-more { font-size: .9rem; margin-top: 10px !important; }
+.campaign-strip { background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 12px; padding: 10px 14px; margin: 0 0 18px; font-size: .95rem; }
+.campaign-strip b { color: var(--accent); }
+@media (min-width: 720px) { .campaign { padding: 22px 26px; } .campaign-gift { display: inline; margin-left: 4px; } }

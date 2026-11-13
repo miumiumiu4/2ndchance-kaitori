@@ -143,7 +143,7 @@ test("GAS：ShopCore.gs と Shop.gs が素のスクリプトとして動き、�
   assert.match(read("gas/Shop.gs"), /^\/\/ 自動生成/);
   vm.runInContext([read("gas/Prices.gs"), read("gas/QuoteCore.gs"), read("gas/ShopCore.gs"), shopGs, read("gas/Code.gs")].join("\n") + "\nthis.G = { ShopCore, SHOP, validateShop_, shopRecalc_, HEADERS };", ctx);
   const { ShopCore, SHOP: S, validateShop_, shopRecalc_, HEADERS } = ctx.G;
-  assert.equal(HEADERS[HEADERS.length - 1], "点数");
+  assert.ok(HEADERS.indexOf("点数") > HEADERS.indexOf("商品ID"), "点数の列");
   assert.equal(ShopCore.cartTotalText(ShopCore.cartTotal([ShopCore.findItem(S, "industrial-fan"), ShopCore.findItem(S, "cupboard-white")], 2000)), "¥7,500 ＋確認中の商品");
   assert.equal(ShopCore.shopPrice(ShopCore.findItem(S, "citizen-wall-clock")).price, 2970);
   const at = "@";
