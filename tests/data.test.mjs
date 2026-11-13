@@ -60,8 +60,10 @@ test("prices.json は prices.template.json と同じ形（キーが欠けてい�
   assert.deepEqual(keys(p.perks), keys(t.perks));
 });
 
-test("prices.json：11/9 打合せの金額（家電の年式 5年・最低額・特典・解体は片付けで無料）", () => {
-  const p = read("data/prices.json");
+// 金額そのものは管理画面で共同代表が変えるので data/prices.json には固定しない。
+// 式の試験に使う写し（tests/fixtures/prices.json）が 11/9 打合せ＋11/13 配送料の表のままかを確かめる。
+test("試験用の価格表（tests/fixtures/prices.json）：11/9 打合せの金額と 11/13 の配送料（10km 以内は無料）", () => {
+  const p = read("tests/fixtures/prices.json");
   assert.equal(p.updated, "2026-11-13");
   assert.deepEqual(p.delivery_tiers.map((d) => [d.max_km, d.fee]), [[10, 0], [15, 3000], [20, 4000], [25, 5000], [30, 6000], [50, 10000], [null, null]], "配送料は店のチラシどおり（10km 以内は無料）");
   const b = Object.fromEntries(p.buyback_items.map((x) => [x.id, x]));

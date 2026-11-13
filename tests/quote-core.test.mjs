@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { quoteBuyback, quoteCollection, quoteCleanup, quoteFromInput, parseQuoteQuery, sameQuote, hoursText, perkStatus, optionPrice, cleanupRows, OFFSET_NOTE } from "../js/quote-core.js";
 
-const REAL = JSON.parse(fs.readFileSync(new URL("../data/prices.json", import.meta.url), "utf8"));
+// 金額の式の試験は tests/fixtures/prices.json（2026-11-13 の価格表の写し）で行う。data/prices.json は管理画面で変わるので、そちらは形だけを確かめる（tests/data.test.mjs）
+const REAL = JSON.parse(fs.readFileSync(new URL("./fixtures/prices.json", import.meta.url), "utf8"));
 // 金額が全部 null の価格表（形の見本）。「要相談」の振る舞いはこれで確かめる
 const BLANK = JSON.parse(fs.readFileSync(new URL("../prices.template.json", import.meta.url), "utf8"));
 

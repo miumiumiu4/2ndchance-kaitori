@@ -9,23 +9,26 @@ import { shopPrice, sameGoods, orderable, findItem, parseCart, toggleCart, inCar
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
-const SHOP = JSON.parse(read("data/shop.json"));
+// 式の試験は tests/fixtures/shop.json（2026-11-13 の商品表の写し）で行う。
+// data/shop.json は管理画面で変わる（売切れ・入れ替え）ので、形と生成したページだけを確かめる。
+const SHOP = JSON.parse(read("tests/fixtures/shop.json"));
+const REAL = JSON.parse(read("data/shop.json"));
 
-test("shop.json：id 重複なし、価格は null か 0 以上、status と写真がある、payment_link は今は空", () => {
-  const ids = SHOP.items.map((x) => x.id);
+test("shop.json：id 重複なし、価格は null か 0 以上、status と写真がある、payment_link は空か https", () => {
+  const ids = REAL.items.map((x) => x.id);
   assert.equal(new Set(ids).size, ids.length);
-  SHOP.items.forEach((x) => {
+  REAL.items.forEach((x) => {
     assert.match(x.id, /^[a-z0-9-]+$/);
     assert.ok(x.price === null || (Number.isInteger(x.price) && x.price >= 0), x.id);
     assert.ok(["available", "reserved", "sold"].includes(x.status), x.id);
     assert.equal(typeof x.free_shipping, "boolean");
     assert.equal(typeof x.payment_link, "string");
-    assert.equal(x.payment_link, "", "決済リンクは段階1では空");
+    assert.ok(x.payment_link === "" || /^https:\/\//.test(x.payment_link), "決済リンクは空か https");
     x.photos.forEach((p) => { assert.ok(fs.existsSync(path.join(ROOT, p)), p); assert.ok(fs.existsSync(path.join(ROOT, p.replace(/\.jpg$/, "-480.jpg"))), p + " のサムネ"); });
   });
   assert.equal(findItem(SHOP, "electric-heater").status, "sold");
-  assert.equal(SHOP.hold_days, 3);
-  assert.match(SHOP.payment_note, /現金・クレジットカード・PayPay/);
+  assert.equal(REAL.hold_days, 3);
+  assert.match(REAL.payment_note, /現金・クレジットカード・PayPay/);
 });
 
 test("商品代：割引は 10円未満切り捨て、null は確認中", () => {
@@ -101,7 +104,7 @@ test("照合：画面の [{id, price}] と Shop の価格", () => {
 
 test("一覧と商品ページ：全商品のページがあり、Product と Offer の JSON-LD、売切れは帯と申込不可", () => {
   const list = read("shop/index.html");
-  SHOP.items.forEach((it) => {
+  REAL.items.forEach((it) => {
     assert.ok(list.includes(`href="../shop/${it.id}/"`), it.id);
     const html = read(`shop/${it.id}/index.html`);
     const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
@@ -119,10 +122,12 @@ test("一覧と商品ページ：全商品のページがあり、Product と Of
       assert.ok(!html.includes(`data-cart-add="${it.id}"`) && !list.includes(`data-cart-add="${it.id}"`), it.id + " はカートに入れられない");
     }
     assert.ok(html.includes('src="../../js/cart.js"'), it.id + " はカートの script を読む");
-    assert.ok(!html.includes("カードで支払う"), "payment_link が空なら出さない");
+    assert.equal(html.includes("カードで支払う"), !!it.payment_link, "payment_link があるときだけ出す");
   });
-  assert.match(list, /class="shop-band shop-band-sold">売切れ/);
-  assert.match(list, /<button type="button" class="btn cart-btn" disabled aria-disabled="true">売切れ<\/button>/);
+  if (REAL.items.some((it) => it.status === "sold")) {
+    assert.match(list, /class="shop-band shop-band-sold">売切れ/);
+    assert.match(list, /<button type="button" class="btn cart-btn" disabled aria-disabled="true">売切れ<\/button>/);
+  }
   assert.match(list, /data-shop-root/);
   assert.match(list, /ネット決済は準備中/);
   assert.match(list, /お取り置きは3日間（仮）/);
@@ -133,7 +138,10 @@ test("一覧と商品ページ：全商品のページがあり、Product と Of
 test("GAS：ShopCore.gs と Shop.gs が素のスクリプトとして動き、注文の確かめ", () => {
   const ctx = {};
   vm.createContext(ctx);
-  vm.runInContext(["gas/Prices.gs", "gas/QuoteCore.gs", "gas/ShopCore.gs", "gas/Shop.gs", "gas/Code.gs"].map(read).join("\n") + "\nthis.G = { ShopCore, SHOP, validateShop_, shopRecalc_, HEADERS };", ctx);
+  // 商品表は Shop.gs（data/shop.json から生成）ではなく試験用の写しを使う
+  const shopGs = "var SHOP = " + read("tests/fixtures/shop.json") + ";";
+  assert.match(read("gas/Shop.gs"), /^\/\/ 自動生成/);
+  vm.runInContext([read("gas/Prices.gs"), read("gas/QuoteCore.gs"), read("gas/ShopCore.gs"), shopGs, read("gas/Code.gs")].join("\n") + "\nthis.G = { ShopCore, SHOP, validateShop_, shopRecalc_, HEADERS };", ctx);
   const { ShopCore, SHOP: S, validateShop_, shopRecalc_, HEADERS } = ctx.G;
   assert.equal(HEADERS[HEADERS.length - 1], "点数");
   assert.equal(ShopCore.cartTotalText(ShopCore.cartTotal([ShopCore.findItem(S, "industrial-fan"), ShopCore.findItem(S, "cupboard-white")], 2000)), "¥7,500 ＋確認中の商品");

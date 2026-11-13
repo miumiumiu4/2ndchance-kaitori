@@ -5,7 +5,8 @@ import fs from "node:fs";
 import { quoteFromInput } from "../js/quote-core.js";
 import { estimateValueText, stickyEstimate, ESTIMATE_LABEL } from "../js/estimate-text.js";
 
-const REAL = JSON.parse(fs.readFileSync(new URL("../data/prices.json", import.meta.url), "utf8"));
+// 金額の式の試験は tests/fixtures/prices.json（2026-11-13 の価格表の写し）で行う。data/prices.json は管理画面で変わるので、そちらは形だけを確かめる（tests/data.test.mjs）
+const REAL = JSON.parse(fs.readFileSync(new URL("./fixtures/prices.json", import.meta.url), "utf8"));
 const BLANK = JSON.parse(fs.readFileSync(new URL("../prices.template.json", import.meta.url), "utf8"));
 const FORM_JS = fs.readFileSync(new URL("../js/form.js", import.meta.url), "utf8");
 const CSS = fs.readFileSync(new URL("../css/site.css", import.meta.url), "utf8");

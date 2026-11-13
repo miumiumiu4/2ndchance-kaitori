@@ -75,10 +75,14 @@ test("provisional: true のとき、料金ページ・トップ・フォーム�
   const nulls = Object.values(prices.cleanup_by_kind).flat().filter((r) => r.price_from === null).length
     + prices.delivery_tiers.filter((d) => d.fee === null).length;
   assert.equal((table.match(/<span class="consult">要相談<\/span>/g) || []).length, nulls, "料金表の要相談の数");
-  assert.match(table, /¥50,000〜/);
+  // 金額は管理画面で変わるので、data/prices.json の値から期待する文字を作る
+  const yen = (n) => "¥" + n.toLocaleString("ja-JP") + "〜";
+  const t0 = prices.collection_tiers.find((t) => t.price_from !== null);
+  if (t0) assert.ok(table.includes(yen(t0.price_from)), "量の区分の金額");
   assert.match(table, /1R・1K/);
   assert.match(table, /クオカード/);
-  assert.match(table, /階段での運び出し<\/td><td class="num">無料/);
+  const stairs = prices.options.find((o) => o.id === "stairs");
+  if (stairs && stairs.price === 0) assert.match(table, /階段での運び出し<\/td><td class="num">無料/);
 });
 
 test("llms.txt・sitemap.xml・robots.txt・gas/QuoteCore.gs がある", () => {

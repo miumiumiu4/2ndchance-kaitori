@@ -9,7 +9,8 @@ import { CONFIG } from "../js/config.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
-const PRICES = read("data/prices.json");
+// 金額の式の試験は tests/fixtures/prices.json（2026-11-13 の価格表の写し）で行う。data/prices.json は管理画面で変わるので、そちらは形だけを確かめる（tests/data.test.mjs）
+const PRICES = read("tests/fixtures/prices.json");
 const STORE = CONFIG.STORE_LATLNG;
 // 店から真東へ d km の点（緯度はそのまま）
 const east = (d) => [STORE[0], STORE[1] + d / (111.32 * Math.cos((STORE[0] * Math.PI) / 180))];
