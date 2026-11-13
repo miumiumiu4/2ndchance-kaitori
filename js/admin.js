@@ -4,6 +4,7 @@
 import { CONFIG } from "./config.js";
 import { CLEANUP_KINDS } from "./quote-core.js";
 import * as A from "./admin-core.js";
+import { makePhotos } from "./admin-photo.js";
 
 const BASE = "../";
 const KEY = "admin-session";
@@ -48,6 +49,7 @@ function renderLogin(msg) {
 <button type="submit" class="btn btn-form btn-block" style="margin-top:16px"${ready ? "" : " disabled"}>${ready ? "ログイン" : "準備中<small>（受け口の URL が未設定）</small>"}</button>
 <p class="hint">${A.LOCK_MAX}回続けて間違えると${A.LOCK_MINUTES}分使えなくなり、オーナーにメールが届きます。ログインは${A.SESSION_HOURS}時間（このタブを閉じると切れます）。</p>
 </form>
+<p class="quick-switch"><a href="quick/">かんたん入力（商品を1点ふやす・売切れにする）へ</a></p>
 </section>`;
   const f = root.querySelector("#adm-login");
   f.addEventListener("submit", async (e) => {
@@ -89,7 +91,7 @@ async function loadAll(msg) {
 
 // ---------- 骨組み ----------
 function renderMain(msg) {
-  root.innerHTML = `<div class="admin-bar"><span>ログイン中：<b>${esc(S.who)}</b></span><button type="button" class="btn btn-ghost admin-small" data-act="logout">ログアウト</button></div>
+  root.innerHTML = `<div class="admin-bar"><span>ログイン中：<b>${esc(S.who)}</b></span><span class="quick-bar-links"><a href="quick/" class="quick-link">かんたん入力</a><button type="button" class="btn btn-ghost admin-small" data-act="logout">ログアウト</button></span></div>
 ${msg ? `<p class="callout">${esc(msg)}</p>` : ""}
 <div class="tabs admin-tabs" role="tablist" aria-label="直すもの">${TABS.map(([k, n]) => `<button type="button" role="tab" id="adm-tab-${k}" aria-selected="${S.tab === k}" data-tab="${k}">${esc(n)}${dirty(k) ? '<small class="admin-dot">未保存</small>' : ""}</button>`).join("")}</div>
 <div id="adm-panel" role="tabpanel" aria-labelledby="adm-tab-${S.tab}"></div>`;
@@ -114,42 +116,7 @@ function refreshTabs() {
   TABS.forEach(([k, n]) => { const b = root.querySelector("#adm-tab-" + k); if (b) b.innerHTML = esc(n) + (dirty(k) ? '<small class="admin-dot">未保存</small>' : ""); });
 }
 
-// ---------- 写真：端末の中で縮めて JPEG に（EXIF・位置情報は落ちる） ----------
-async function decode(file) {
-  if (window.createImageBitmap) {
-    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch (_) {}
-  }
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
-    return img;
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-}
-function toJpeg(src, max) {
-  const w0 = src.width || src.naturalWidth, h0 = src.height || src.naturalHeight;
-  const { w, h } = A.fitSize(w0, h0, max);
-  const c = document.createElement("canvas");
-  c.width = w; c.height = h;
-  const g = c.getContext("2d");
-  g.fillStyle = "#fff"; g.fillRect(0, 0, w, h);
-  g.imageSmoothingQuality = "high";
-  g.drawImage(src, 0, 0, w, h);
-  const url = c.toDataURL("image/jpeg", 0.82);
-  // ブラウザが付ける色の記録（ICC）なども落として、画素だけの JPEG にする
-  const raw = atob(url.slice(url.indexOf(",") + 1));
-  const bytes = A.stripJpegMeta(Array.from(raw, (ch) => ch.charCodeAt(0)));
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.slice(i, i + 8192));
-  return { url, base64: btoa(bin), w, h };
-}
-export async function makePhotos(file) {
-  const src = await decode(file);
-  return { big: toJpeg(src, A.PHOTO_MAX), thumb: toJpeg(src, A.THUMB_MAX) };
-}
+// ---------- 写真：端末の中で縮めて JPEG に（js/admin-photo.js。EXIF・位置情報は落ちる） ----------
 // 今の中身から使われている写真だけ上げる（消した商品の写真は上げない）
 function usedPhotos(t) {
   const w = S.work[t];

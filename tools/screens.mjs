@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 画面の確認（任意）：簡易サーバーで配信し、Playwright で 390px と 1280px を撮影して screens/ に保存。
 // あわせてフォームの動き（冷蔵庫2台の概算・仮の帯・タブ切替・相殺・確認画面・送信ボタンの「準備中」・固定バーの概算パネル）と、
-// 販売ページのカート（2点入れる・配送料1回分・外す・売切れは入れられない・確認画面）を確かめる。
+// 販売ページのカート（2点入れる・配送料1回分・外す・売切れは入れられない・確認画面）、管理画面とかんたん入力（偽の GAS）を確かめる。
 //   node tools/screens.mjs      （Playwright が入っている環境で）
 import http from "node:http";
 import fs from "node:fs";
@@ -481,6 +481,128 @@ try {
     await pg.waitForSelector(".admin-confirm");
     check("お店の情報：お知らせの変更点", (await pg.textContent(".admin-confirm")).includes("年末年始も営業します"));
     check("管理画面：コンソールエラーなし", true);
+    await c.close();
+  }
+
+  // かんたん入力（/admin/quick/）：偽の GAS でログイン → 写真1枚で1点ふやす（電波が切れたら下書き → もう一度送る）→
+  // 売切れにする画面の一覧に出る → 売切れにする → 販売中に戻す。押す所は 48px 以上。/admin/ とログインを共有
+  {
+    const A = await import("../js/admin-core.js");
+    const c0 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP" });
+    const p0 = await c0.newPage();
+    p0.on("pageerror", (e) => errors.push(`quick ${e.message}`));
+    await p0.goto(BASE + "admin/quick/", { waitUntil: "networkidle" });
+    check("かんたん入力：GAS の URL が空ならログインは「準備中」で押せない", (await p0.locator("#q-login button[type=submit]").isDisabled()) && (await p0.textContent("#q-login button")).includes("準備中"));
+    check("かんたん入力：noindex", (await p0.getAttribute('meta[name="robots"]', "content")).includes("noindex"));
+    await c0.close();
+
+    const GAS = "https://gas.invalid/exec";
+    const sent = [];
+    let offline = false;
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: "ja-JP", hasTouch: true, isMobile: true });
+    const pg = await c.newPage();
+    pg.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(`quick ${m.text()}`); });
+    pg.on("pageerror", (e) => errors.push(`quick ${e.message}`));
+    const cfg = fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8").replace(/GAS_URL: ""/, `GAS_URL: "${GAS}"`);
+    await c.route("**/js/config.js", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: cfg }));
+    const files = Object.fromEntries(["shop", "prices", "site", "results", "items"].map((k) => [k, { sha: "sha-" + k, data: JSON.parse(fs.readFileSync(path.join(ROOT, "data", k + ".json"), "utf8")) }]));
+    let n = 1;
+    await c.route(GAS, async (r) => {
+      if (offline) return r.abort("internetdisconnected");
+      const b = JSON.parse(r.request().postData());
+      sent.push(b);
+      let out;
+      if (b.kind === "admin_login") out = b.passcode === "test-pass-1234" ? { ok: true, token: "cd".repeat(32), who: b.who } : { ok: false, error: "パスコードが違います" };
+      else if (b.kind === "admin_load") out = { ok: true, who: "共同代表", files, actions_url: "https://github.com/miumiumiu4/2ndchance-kaitori/actions" };
+      else if (b.kind === "admin_save") {
+        if (b.base_sha !== files.shop.sha) out = { ok: false, conflict: true, error: "ほかの所で先に保存されています" };
+        else { files.shop = { sha: "sha-shop-" + ++n, data: { ...b.data, updated: "2026-11-13" } }; out = { ok: true, commit: "abcdef12", changes: [], sha: files.shop.sha, data: files.shop.data }; }
+      } else out = { ok: true };
+      await r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(out) });
+    });
+    await pg.goto(BASE + "admin/quick/", { waitUntil: "networkidle" });
+    await pg.screenshot({ path: path.join(ROOT, "screens", "quick-login-390.png"), fullPage: true });
+    await pg.fill("#q-pass", "test-pass-1234");
+    await pg.click("#q-login button[type=submit]");
+    await pg.waitForSelector("#q-add");
+    check("かんたん入力：ログインで「商品を1点ふやす」（カメラ・金額・商品名の候補・年式・送料無料・保存して公開）", (await pg.getAttribute("#q-cam", "capture")) === "environment" && (await pg.getAttribute("#q-cam", "accept")) === "image/*" && (await pg.getAttribute("#q-price", "inputmode")) === "numeric" && (await pg.locator(".quick-chip").allTextContents()).join("・") === "冷蔵庫・洗濯機・電子レンジ・ソファ・テーブル・食器棚・その他" && (await pg.locator("#q-free[type=checkbox]").count()) === 1 && (await pg.textContent(".quick-save")).trim() === "保存して公開");
+    const small = async () => pg.evaluate(() => [...document.querySelectorAll("main button, main a, main label.btn, main label.choice, main input:not(.visually-hidden):not([type=checkbox]), main select")]
+      .filter((el) => el.offsetParent && !el.closest(".hint"))
+      .map((el) => [el.textContent.trim().slice(0, 12) || el.id, Math.round(el.getBoundingClientRect().height)])
+      .filter(([, h]) => h < 48));
+    const s1 = await small();
+    check("かんたん入力：押す所は高さ 48px 以上（ふやす画面）", s1.length === 0, JSON.stringify(s1));
+    check("かんたん入力 390px：横スクロールなし", (await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    // 入れ忘れはその場で止まる（送らない）
+    await pg.click(".quick-save");
+    await pg.waitForSelector("#q-errs:not([hidden])");
+    check("かんたん入力：写真・金額・商品名が無いと送らずに知らせる", (await pg.textContent("#q-errs")).includes("写真を1枚以上") && (await pg.getAttribute("#q-price", "aria-invalid")) === "true" && sent.filter((x) => x.kind === "admin_save").length === 0);
+    // 写真（EXIF 入り）・金額（全角）・候補で商品名・年式・送料無料
+    const big = fs.readFileSync(path.join(ROOT, "assets/shop/aqua-fridge-355.jpg"));
+    const exif = Buffer.concat([big.subarray(0, 2), Buffer.from([0xff, 0xe1, 0x00, 0x10]), Buffer.from("Exif\0\0MM\0*\0\0\0\b"), big.subarray(2)]);
+    await pg.setInputFiles("#q-cam", { name: "IMG_0002.jpg", mimeType: "image/jpeg", buffer: exif });
+    await pg.waitForSelector(".quick-photo img");
+    await pg.fill("#q-price", "１２，０００");
+    await pg.click('.quick-chip[data-name="冷蔵庫"]');
+    check("かんたん入力：候補を押すと商品名に入る", (await pg.inputValue("#q-name")) === "冷蔵庫");
+    await pg.fill("#q-name", "冷蔵庫 2ドア");
+    await pg.fill("#q-year", "2020");
+    await pg.click("label.quick-free");
+    await pg.screenshot({ path: path.join(ROOT, "screens", "quick-add-390.png"), fullPage: true });
+    // 電波が届かない → 下書きを残して「もう一度送る」
+    offline = true;
+    await pg.click(".quick-save");
+    await pg.waitForSelector("#q-draft");
+    const draftText = await pg.textContent("#q-draft");
+    const stored = await pg.evaluate(() => sessionStorage.getItem("admin-quick-draft"));
+    check("かんたん入力：つながらないと下書き（sessionStorage）を残して「もう一度送る」", draftText.includes("電波が届かず") && draftText.includes("「冷蔵庫 2ドア」を追加") && !!stored && JSON.parse(stored).op.photos.length === 1 && (await pg.inputValue("#q-name")) === "冷蔵庫 2ドア");
+    await pg.screenshot({ path: path.join(ROOT, "screens", "quick-offline-390.png"), fullPage: false });
+    offline = false;
+    await pg.click('[data-act="retry"]');
+    await pg.waitForSelector("#q-done");
+    const save1 = sent.filter((x) => x.kind === "admin_save").at(-1);
+    const item = save1.data.items[0];
+    const ph = save1.photos || [];
+    const pBig = ph.find((x) => !x.path.endsWith("-480.jpg")), pSmall = ph.find((x) => x.path.endsWith("-480.jpg"));
+    check("かんたん入力：送った中身（/admin/ と同じ admin_save・id は slug＋日付・先頭に追加・税込の金額・年式・送料無料）",
+      save1.target === "shop" && save1.token === "cd".repeat(32) && save1.base_sha === "sha-shop" && /^fridge-\d{8}$/.test(item.id) && item.name === "冷蔵庫 2ドア" && item.price === 12000 && item.year === 2020 && item.free_shipping === true && item.status === "available" && item.category === "家電" && save1.data.items.length === JSON.parse(fs.readFileSync(path.join(ROOT, "data/shop.json"), "utf8")).items.length + 1,
+      JSON.stringify(item));
+    check("かんたん入力：写真は 1200px と 480px の JPEG、EXIF なし（置き場は assets/shop/<id>.jpg）", ph.length === 2 && A.checkPhoto(Buffer.from(pBig.base64, "base64"), A.PHOTO_MAX) === "" && A.checkPhoto(Buffer.from(pSmall.base64, "base64"), A.THUMB_MAX) === "" && pBig.path === `assets/shop/${item.id}.jpg` && item.photos[0] === pBig.path);
+    check("かんたん入力：「保存しました。1〜2分で反映されます」と商品ページへのリンク、下書きは消える",
+      (await pg.textContent("#q-done")).includes("保存しました。1〜2分で反映されます") && (await pg.getAttribute("#q-done-link", "href")) === `../../shop/${item.id}/` && (await pg.evaluate(() => sessionStorage.getItem("admin-quick-draft"))) === null && !(await pg.isVisible("#q-draft")));
+    await pg.screenshot({ path: path.join(ROOT, "screens", "quick-saved-390.png"), fullPage: false });
+
+    // 売切れにする：販売中の一覧（大きな写真）に今の商品が出る → 押す → 「売切れにしますか」→ 1回押す
+    await pg.click('[data-act="to-sold"]');
+    await pg.waitForSelector("#q-selling");
+    const selling = files.shop.data.items.filter((x) => x.status !== "sold").length;
+    check("売切れにする：販売中の商品が写真つきで並び、足した商品が先頭", (await pg.locator("#q-selling .quick-tile").count()) === selling && (await pg.getAttribute("#q-selling .quick-tile >> nth=0", "data-sell")) === item.id && (await pg.locator("#q-selling .quick-tile img").count()) === selling);
+    const s2 = await small();
+    check("かんたん入力：押す所は高さ 48px 以上（売切れの画面）", s2.length === 0, JSON.stringify(s2));
+    await pg.screenshot({ path: path.join(ROOT, "screens", "quick-sold-390.png"), fullPage: false });
+    await pg.click(`[data-sell="${item.id}"]`);
+    await pg.waitForSelector("#q-ask");
+    check("売切れにする：「売切れにしますか」と聞く（まだ送らない）", (await pg.textContent("#q-ask")).includes("「冷蔵庫 2ドア」を売切れにしますか") && sent.filter((x) => x.kind === "admin_save").length === 1);
+    await pg.screenshot({ path: path.join(ROOT, "screens", "quick-ask-390.png"), fullPage: false });
+    await pg.click('#q-ask [data-act="yes"]');
+    await pg.waitForSelector("#q-msg");
+    const save2 = sent.filter((x) => x.kind === "admin_save").at(-1);
+    check("売切れにする：1回押すと保存（その商品だけ売切れ・写真は送らない・新しい sha）", save2.data.items.find((x) => x.id === item.id).status === "sold" && save2.data.items.filter((x) => x.status === "sold").length === files.shop.data.items.filter((x) => x.status === "sold").length && (save2.photos || []).length === 0 && save2.base_sha === "sha-shop-2" && (await pg.textContent("#q-msg")).includes("売切れにしました"));
+    check("売切れにする：売切れの一覧に移り「販売中に戻す」が出る", (await pg.locator(`#q-sold [data-back="${item.id}"]`).count()) === 1 && (await pg.locator(`[data-sell="${item.id}"]`).count()) === 0);
+    await pg.click(`[data-back="${item.id}"]`);
+    await pg.waitForSelector("#q-ask");
+    check("販売中に戻す：「販売中に戻しますか」と聞く", (await pg.textContent("#q-ask")).includes("販売中に戻しますか"));
+    await pg.click('#q-ask [data-act="yes"]');
+    await pg.waitForSelector("#q-msg");
+    check("販売中に戻す：保存すると販売中の一覧に戻る", sent.filter((x) => x.kind === "admin_save").at(-1).data.items.find((x) => x.id === item.id).status === "available" && (await pg.locator(`[data-sell="${item.id}"]`).count()) === 1);
+    check("かんたん入力 390px：売切れの画面も横スクロールなし", (await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+    // くわしい編集と行き来（ログインは共通）
+    await pg.click('a.quick-link[href="../"]');
+    await pg.waitForSelector(".admin-row");
+    check("かんたん入力 →「くわしい編集」：ログインし直さずに /admin/ が開く", sent.filter((x) => x.kind === "admin_login").length === 1);
+    await pg.click('a.quick-link[href="quick/"]');
+    await pg.waitForSelector("#q-add");
+    check("/admin/ →「かんたん入力」：ログインし直さずに開く", sent.filter((x) => x.kind === "admin_login").length === 1);
     await c.close();
   }
 

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>かんたん入力｜2nd chance recycle</title>
+<meta name="theme-color" content="#1f5e46">
+<link rel="stylesheet" href="../../css/site.css?v=4bac3433">
+<link rel="icon" href="../../assets/icons/truck-mini.svg" type="image/svg+xml">
+</head>
+<body class="admin quick">
+<!-- かんたん入力（共同代表のスマホ用）：「商品を1点ふやす」と「売切れにする」だけの1画面。
+     ログイン・保存の受け口（GAS の admin_*）・確かめ（js/admin-core.js）は /admin/ と同じ。
+     ナビ・sitemap・llms.txt には出さない。robots.txt の Disallow: admin/ に含まれる。js/admin-quick.js が画面を作る。 -->
+<header class="site-header"><div class="wrap">
+<span class="brand">かんたん入力<small>2nd chance recycle</small></span>
+</div></header>
+<main id="main" class="wrap admin-main">
+<div data-quick-root><p class="muted">読み込み中…</p></div>
+<noscript><p class="callout">この画面を使うには JavaScript を有効にしてください。</p></noscript>
+</main>
+<script type="module" src="../../js/admin-quick.js"></script>
+</body>
+</html>

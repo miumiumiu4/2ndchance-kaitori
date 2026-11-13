@@ -890,8 +890,8 @@ outputs.set("js/site.js", siteJs());
 outputs.set("gas/Prices.gs", pricesGs());
 outputs.set("gas/ShopCore.gs", coreGs("js/shop-core.js", "ShopCore"));
 outputs.set("gas/AdminCore.gs", coreGs("js/admin-core.js", "AdminCore"));
-// 管理画面（ナビ・sitemap には出さない）。CSS の版番号だけ付け直す
-outputs.set("admin/index.html", fs.readFileSync(path.join(ROOT, "admin/index.html"), "utf8").replace(/href="([./]*)css\/site\.css(\?v=[0-9a-f]*)?"/g, `href="$1css/site.css?v=${CSS_VER}"`));
+// 管理画面とかんたん入力（ナビ・sitemap には出さない）。CSS の版番号だけ付け直す
+for (const f of ["admin/index.html", "admin/quick/index.html"]) outputs.set(f, fs.readFileSync(path.join(ROOT, f), "utf8").replace(/href="([./]*)css\/site\.css(\?v=[0-9a-f]*)?"/g, `href="$1css/site.css?v=${CSS_VER}"`));
 outputs.set("gas/Shop.gs", `// 自動生成：tools/build.mjs が data/shop.json から作る。手で直さない。\n// 商品を変えたら build → このファイルを Apps Script に反映（gas/README.md）。\nvar SHOP = ${JSON.stringify(SHOP, null, 2)};\n`);
 for (const it of SHOP.items) { const [f, html] = shopItemPage(it); outputs.set(f, html); }
 

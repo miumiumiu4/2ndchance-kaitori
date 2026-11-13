@@ -240,3 +240,29 @@ test("受付の doPost は管理画面の kind を先に振り分け、トーク
   assert.ok(live.SHOP.items.length > 0, "Shop.gs のまま");
   assert.match(read("gas/Code.gs"), /indexOf\('admin_'\) === 0\) return json_\(adminHandle_\(body\)\)/);
 });
+
+test("かんたん入力の中身（js/admin-quick-core.js）も同じ admin_save で積める：写真3枚＝6ファイル＋商品表を1つのコミット、売切れも", async () => {
+  const Q = await import("../js/admin-quick-core.js");
+  const G = load();
+  const token = login(G).token;
+  const L = G.post({ kind: "admin_load", token });
+  const pic = fs.readFileSync(path.join(ROOT, "assets/shop/industrial-fan-480.jpg")).toString("base64");
+  const op = Q.addOp({ name: "食器棚 白", price: 18000, year: 2019, free_shipping: false }, [1, 2, 3].map(() => ({ big: pic, thumb: pic })), L.files.shop.data, "2026-11-13");
+  const ap = Q.applyQuickOp(L.files.shop.data, op);
+  const r = G.post({ kind: "admin_save", token, ...Q.savePayload(ap, L.files.shop.sha) });
+  assert.equal(r.ok, true, r.error + " " + (r.errors || []).join());
+  const c = G.gh.commits.at(-1);
+  assert.match(c.message, /^管理画面：商品を更新（共同代表・追加：商品「食器棚 白」（¥18,000） ほか3件）\n\n[\s\S]*\n写真：assets\/shop\/cupboard-20261113-p3\.jpg$/);
+  assert.equal(G.gh.trees.get(c.tree).tree.length, 7);
+  assert.equal(JSON.parse(G.gh.files.get("data/shop.json").toString("utf8")).items[0].id, "cupboard-20261113");
+  // 結果が届かず同じ下書きをもう一度：sha が古いので重なり → 読み直して当てると「もう入っている」（二重に積まない）
+  assert.equal(G.post({ kind: "admin_save", token, ...Q.savePayload(ap, L.files.shop.sha) }).conflict, true);
+  const L2 = G.post({ kind: "admin_load", token });
+  assert.equal(Q.applyQuickOp(L2.files.shop.data, op).already, true);
+  // 売切れにする
+  const s = Q.applyQuickOp(L2.files.shop.data, Q.statusOp(L2.files.shop.data.items[0], "sold"));
+  const r2 = G.post({ kind: "admin_save", token, ...Q.savePayload(s, L2.files.shop.sha) });
+  assert.equal(r2.ok, true);
+  assert.match(G.gh.commits.at(-1).message, /状態 販売中 → 売切れ/);
+  assert.equal(G.gh.commits.length, 2);
+});
