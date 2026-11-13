@@ -9,7 +9,6 @@
     { "id": "clothes", "title": "衣類も販売しています（店頭 10% OFF）", "photo": "assets/shop/clothes-rack.jpg", "note": "冬物のコートや婦人服など。店頭でご覧ください（このページからの注文は受けていません）。" }
   ],
   "items": [
-    { "id": "item-20261114", "name": "テスト", "category": "その他", "price": 100, "year": null, "condition": "中古", "size": "", "free_shipping": false, "status": "available", "photos": ["assets/shop/item-20261114.jpg"], "note": "", "payment_link": "" },
     { "id": "aqua-fridge-355", "name": "AQUA 冷蔵庫 355L（2024年）", "category": "家電", "price": 65000, "year": 2024, "condition": "中古", "size": "355L・4ドア", "free_shipping": true, "status": "available", "photos": ["assets/shop/aqua-fridge-355.jpg"], "note": "2024年製。送料無料（店から50km以内）。", "payment_link": "" },
     { "id": "drum-washer", "name": "ドラム式洗濯乾燥機（BIG DRUM）", "category": "家電", "price": 45000, "year": null, "condition": "中古", "size": "", "free_shipping": true, "status": "available", "photos": ["assets/shop/drum-washer.jpg"], "note": "送料無料（店から50km以内）。", "payment_link": "" },
     { "id": "rice-cooker-2024", "name": "炊飯器 5合炊き（新品・2024年）", "category": "家電", "price": 8200, "year": 2024, "condition": "新品", "size": "5合炊き", "free_shipping": false, "status": "available", "photos": ["assets/shop/rice-cooker-2024.jpg"], "note": "新品（箱入り）。", "payment_link": "" },
