@@ -16,6 +16,7 @@
 ## 初回の手順
 1. 受付用の Google スプレッドシートを新しく作る（シート「受付」「メール会員」「配送料ログ」「集計」は最初の受付で自動で作られる）。
 2. Apps Script のプロジェクトを新しく作り、`Code.gs`・`QuoteCore.gs`・`Prices.gs`・`ShopCore.gs`・`Shop.gs`・`Admin.gs`・`AdminCore.gs` の7つを同じ名前で置く（clasp を使う場合は `.clasp.json` をコミットしない）。
+   - clasp で入れる場合（Mac）：`cd gas && printf '{"scriptId":"<スクリプト ID>","rootDir":"."}' > .clasp.json && clasp push -f`。スクリプト ID は Apps Script の「プロジェクトの設定」にある。`appsscript.json` も一緒に入る（タイムゾーン・ウェブアプリの実行者とアクセス）。
 3. 「プロジェクトの設定」→「スクリプト プロパティ」に次を入れる。**値はこのリポジトリ・Issue・PR に書かない。**
 
    | プロパティ名 | 中身 | 必須 |
