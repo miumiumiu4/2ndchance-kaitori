@@ -25,5 +25,5 @@ export const CONFIG = {
   // 入口は予約フォームの welcome ページ。src・ref・utm_* を読んで予約フォームへ引き継ぐ（? があるので ref は & でつながる）
   AIRCON_BOOKING_URL: "https://miumiumiu4.github.io/arigatou-booking/welcome/?src=2ndchance",
   AIRCON_REF_PARAM: "ref",   // 12月に "partner" へ
-  AIRCON_REF_CODE: ""        // 紹介番号（12月から会社番号）。空なら付けない
+  AIRCON_REF_CODE: "C000-A0042" // 共同代表の紹介番号（紹介ノート・外部）。12月から会社番号
 };
